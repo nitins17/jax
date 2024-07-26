@@ -1,0 +1,11 @@
+platforms:
+#  Maps "--platforms=//tools/toolchains/cross_compile/config:darwin_x86_64"
+#  to "--cpu=darwin".
+  //tools/toolchains/cross_compile/config:darwin_arm64
+    --cpu=darwin_arm64
+
+flags:
+  # Maps "--cpu=darwin" to
+  # "--platforms=//tools/toolchains/cross_compile/config:darwin_x86_64".
+  --cpu=darwin_arm64
+    //tools/toolchains/cross_compile/config:darwin_arm64
