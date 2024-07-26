@@ -297,7 +297,7 @@ build:cross_compile_macos_arm64 --action_env  MACOSX_DEPLOYMENT_TARGET=12.0
 
 # Set the target CPU to Darwin x86
 build:cross_compile_macos_arm64 --platforms=//tools/toolchains/cross_compile/config:darwin_arm64
-build:cross_compile_macos_arm64 --cpu=darwin
+build:cross_compile_macos_arm64 --cpu=darwin_arm64
 build:cross_compile_macos_arm64 --crosstool_top=//tools/toolchains/cross_compile/cc:cross_compile_toolchain_suite
 # When RBE cross-compiling for macOS, we need to explicitly register the
 # toolchain. Otherwise, oddly, RBE complains that a "docker container must be
