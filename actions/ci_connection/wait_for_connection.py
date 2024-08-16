@@ -95,8 +95,8 @@ if __name__ == "__main__":
   # Grab and print the data required to connect to this vm
   host = os.environ.get("HOSTNAME")
   repo = os.environ.get("REPOSITORY")
-
-  print(f"Connection parameters: '{host} {repo}'")
+  print('Googler connection only\nSee go/<insert final golink> for details')
+  print(f"Connection string: ml_actions_connect  --host '{host}' --repo '{repo}'")
 
   # Thread is running as a daemon so it will quit when the
   # main thread terminates.
