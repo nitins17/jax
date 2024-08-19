@@ -19,8 +19,8 @@ runs:
     shell: bash
     run: |
       echo "All labels: ${{ toJSON(github.event.pull_request.labels.*.name) }}"
-      echo "Halt tag: ${{ input.should-wait-tag }}"
-      echo "Should halt input: ${{ input.should-wait-input }}"
+      echo "Halt tag: ${{ inputs.should-wait-tag }}"
+      echo "Should halt input: ${{ inputs.should-wait-input }}"
   - name: Halt For Connection
     shell: bash
     if: |
