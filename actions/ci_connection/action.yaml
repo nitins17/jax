@@ -1,21 +1,35 @@
 name: "Wait For Connection"
 description: 'Action to wait for connection from user'
 inputs:
-  should-wait:
+  should-wait-input:
     description: 'Should the action wait for user connection'
-    required: true
+    required: false
     default: "0"
+  should-wait-tag:
+    description: "Tag that will flag action to wait on reruns if present"
+    required: false
+    default: "halt_on_retry"
   repository:
       description: 'Repository name with owner. For example, actions/checkout'
       default: ${{ github.repository }}
 runs:
   using: "composite"
   steps:
-  - name: Wait For Connection
+  - name: Print halt conditions
     shell: bash
+    run: |
+      echo "All labels: ${{ toJSON(github.event.pull_request.labels.*.name) }}"
+      echo "Halt tag: ${{ input.should-wait-tag }}"
+      echo "Should halt input: ${{ input.should-wait-input }}"
+  - name: Halt For Connection
+    shell: bash
+    if: |
+      (contains(github.event.pull_request.labels.*.name, inputs.should-wait-tag) && github.run_attempt > 1) ||
+      inputs.should-wait-input == "1" ||
+      inputs.should-wait-input == "yes"
     env:
       REPOSITORY: ${{ inputs.repository }}
-      INTERACTIVE_CI: ${{ inputs.should-wait }}
+      INTERACTIVE_CI: 1 
       PYTHONUNBUFFERED: 1
     run: |
       python3 ./actions/ci_connection/wait_for_connection.py
