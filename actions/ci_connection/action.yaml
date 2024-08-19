@@ -25,8 +25,8 @@ runs:
     shell: bash
     if: |
       (contains(github.event.pull_request.labels.*.name, inputs.should-wait-tag) && github.run_attempt > 1) ||
-      inputs.should-wait-input == "1" ||
-      inputs.should-wait-input == "yes"
+      inputs.should-wait-input == '1' ||
+      inputs.should-wait-input == 'yes'
     env:
       REPOSITORY: ${{ inputs.repository }}
       INTERACTIVE_CI: 1 
