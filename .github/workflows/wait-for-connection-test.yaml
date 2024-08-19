@@ -32,6 +32,6 @@ jobs:
       - name: Wait For Connection
         uses: ./actions/ci_connection/
         with:
-          should-wait-input: ${{ inputs.halt-for-connection }}
+          halt-dispatch-input: ${{ inputs.halt-for-connection }}
       - name: Echo
         run: echo "Real job here..."
