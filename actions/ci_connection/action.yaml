@@ -21,6 +21,7 @@ runs:
       echo "All labels: ${{ toJSON(github.event.pull_request.labels.*.name) }}"
       echo "Halt tag: ${{ inputs.should-wait-tag }}"
       echo "Should halt input: ${{ inputs.should-wait-input }}"
+      echo "Reattempt count: ${{ github.run_attempt }}"
   - name: Halt For Connection
     shell: bash
     if: |
