@@ -17,6 +17,7 @@ jobs:
 
     env:
       ENV_FILE: ci/envs/build_artifacts/jaxlib/linux_x86/py312
+      JAXCI_RUN_IN_ACTIONS: 1
 
     steps:
       - uses: actions/checkout@v3
