@@ -52,7 +52,9 @@ fi
 jaxrun() { "$@"; }
 
 # All builds except for Mac run under Docker.
-if [[ "$(uname -s)" != "Darwin" ]]; then
+# GitHub actions do not need to be run in Docker. It always runs in a Docker
+# container. The image and the runner type are set in the workflow file.
+if [[ "$JAXCI_RUN_IN_ACTIONS" != 1 ]] && [[ "$(uname -s)" != "Darwin" ]]; then
   source ./ci/utilities/setup_docker.sh
 fi
 
