@@ -27,4 +27,4 @@ export JAXCI_PYTHON=""
 # Temporary; for local testing.
 export JAXCI_GIT_DIR=$(pwd)
 
-export JAXCI_RUN_IN_ACTIONS=""
+export JAXCI_RUN_IN_ACTIONS=${JAXCI_RUN_IN_ACTIONS:-0}
