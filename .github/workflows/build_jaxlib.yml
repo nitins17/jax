@@ -21,10 +21,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      # Halt for connection if workflow dispatch is told to or if it is a retry with the label halt_on_retry
+      # Halt for testing
       - name: Wait For Connection
-        uses: ./actions/ci_connection/
+        uses: google-ml-infra/jax-fork/actions/ci_connection@61e7d8d6c273b102e4a6271c1e84bd0a4febc8cb
         with:
-          halt-dispatch-input: ${{ inputs.halt-for-connection }}
+          halt-dispatch-input: "1"
       - name: Run build script
         run: ./ci/build_artifacts.sh
