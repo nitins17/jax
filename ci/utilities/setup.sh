@@ -14,7 +14,7 @@
 # limitations under the License.
 # ==============================================================================
 #
-# Common setup for all JAX scripts.
+# Common setup for all JAX builds.
 #
 # -e: abort script if one command fails
 # -u: error if undefined variable used
@@ -22,15 +22,14 @@
 # -o pipefail: entire command fails if pipe fails. watch out for yes | ...
 # -o history: record shell history
 # -o allexport: export all functions and variables to be available to subscripts
+set -euxo pipefail -o history -o allexport
 
-# TODO: Add -u when script is ready
-set -exo pipefail -o history -o allexport
-
-# Tempoary way to source envs. In the final version of the CL, these
-# will be moved to the Kokoro build configs and the jobs will automatically
-# source them before running the script.
 if [[ -z "$ENV_FILE" ]]; then
-  echo "Please set a config file to ENV_FILE"
+  echo "Setup script requires an ENV_FILE to be set."
+  echo "If you are looking to build JAX artifacts, please set ENV_FILE to an"
+  echo "env file in the ci/envs/build_artifacts directory."
+  echo "If you are looking to run JAX tests, please set ENV_FILE to an"
+  echo "env file in the ci/envs/run_tests directory."
   exit 1
 fi
 source "$ENV_FILE"
@@ -52,9 +51,9 @@ fi
 jaxrun() { "$@"; }
 
 # All builds except for Mac run under Docker.
-# GitHub actions do not need to be run in Docker. It always runs in a Docker
+# GitHub actions do not need to invoke this script. It always runs in a Docker
 # container. The image and the runner type are set in the workflow file.
-if [[ "$JAXCI_RUN_IN_ACTIONS" != 1 ]] && [[ "$(uname -s)" != "Darwin" ]]; then
+if [[ "$JAXCI_USE_DOCKER" == 1 ]] || [[ "$(uname -s)" != "Darwin" ]]; then
   source ./ci/utilities/setup_docker.sh
 fi
 
@@ -88,7 +87,6 @@ fi
 
 if [[ "$JAXCI_RUN_TESTS" == 1 ]]; then
   jaxrun bash -c "$JAXCI_PYTHON -m pip install $JAXCI_OUTPUT_DIR/*.whl"
-  jaxrun "$JAXCI_PYTHON" -m pip install -U -e .
 fi
 
 # TODO: cleanup steps
