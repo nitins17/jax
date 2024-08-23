@@ -32,7 +32,7 @@ fi
 
 # Build the jax-cuda-pjrt artifact
 if [[ "$JAXCI_BUILD_PJRT_ENABLE" == 1 ]]; then
-  jaxrun python3 ci/cli/build.py jax-cuda-pjrt --python_version=$JAXCI_HERMETIC_PYTHON_VERSION
+  jaxrun python3 ci/cli/build.py jax-cuda-pjrt
 fi
 
 # After building `jaxlib`, `jaxcuda-plugin`, and `jax-cuda-pjrt`, we run
