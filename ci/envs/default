@@ -21,7 +21,7 @@ export JAXCI_DOCKER_ARGS=""
 
 # Controls the version of Hermetic Python to use. If empty, Bazel will use
 # the system version of Python.
-export JAXCI_HERMETIC_PYTHON_VERSION=""
+export JAXCI_HERMETIC_PYTHON_VERSION={JAXCI_HERMETIC_PYTHON_VERSION:-}
 
 # Controls the location where the artifacts are stored on the Docker container. 
 # When specifying dependencies on local wheels, Bazel will look for them in
