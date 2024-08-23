@@ -22,9 +22,9 @@
 # -o pipefail: entire command fails if pipe fails. watch out for yes | ...
 # -o history: record shell history
 # -o allexport: export all functions and variables to be available to subscripts
-set -euxo pipefail -o history -o allexport
+set -euo pipefail -o history -o allexport
 
-if [[ -z "$ENV_FILE" ]]; then
+if [[ -z "${ENV_FILE+dummy}" ]]; then
   echo "Setup script requires an ENV_FILE to be set."
   echo "If you are looking to build JAX artifacts, please set ENV_FILE to an"
   echo "env file in the ci/envs/build_artifacts directory."
@@ -32,6 +32,7 @@ if [[ -z "$ENV_FILE" ]]; then
   echo "env file in the ci/envs/run_tests directory."
   exit 1
 fi
+set -x
 source "$ENV_FILE"
 
 # Decide whether to use the release tag. JAX CI jobs build from the main
