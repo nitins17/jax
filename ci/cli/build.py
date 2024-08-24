@@ -27,7 +27,7 @@ ARTIFACT_BUILD_TARGET_DICT = {
 }
 
 def add_python_argument(parser: argparse.ArgumentParser):
-  """Add Python version to the parser."""
+  """Add Python version argument to the parser."""
   parser.add_argument(
       "--python_version",
       type=str,
@@ -41,7 +41,7 @@ def add_python_argument(parser: argparse.ArgumentParser):
 # allow override to pass in custom flags for certain builds like the RBE
 # jobs
 def add_system_argument(parser: argparse.ArgumentParser):
-  """Add Target System to the parser."""
+  """Add Target System argument to the parser."""
   parser.add_argument(
       "--target_system",
       type=str,
@@ -51,7 +51,7 @@ def add_system_argument(parser: argparse.ArgumentParser):
   )
 
 def add_cuda_argument(parser: argparse.ArgumentParser):
-  """Add CUDA version to the parser."""
+  """Add CUDA version argument to the parser."""
   # TODO: should probably make this naming agnostic to allow for amd or intel
   parser.add_argument(
       "--cuda_version",
@@ -61,7 +61,7 @@ def add_cuda_argument(parser: argparse.ArgumentParser):
   )
 
 def add_cudnn_argument(parser: argparse.ArgumentParser):
-  """Add cuDNN version to the parser."""
+  """Add cuDNN version argument to the parser."""
   parser.add_argument(
       "--cudnn_version",
       type=str,
@@ -69,14 +69,61 @@ def add_cudnn_argument(parser: argparse.ArgumentParser):
       help="cuDNN version to use",
   )
 
-def get_bazelrc_config(os_name: str, arch: str, artifact: str):
+def add_rbe_argument(parser: argparse.ArgumentParser):
+  """Add RBE mode to the parser."""
+  parser.add_argument(
+      "--use_rbe",
+      type=bool,
+      action="store_true",
+      default=False,
+      help="""
+      If set, the build will use RBE where possible. Currently, only Linux x86
+      and Windows builds can use RBE. On other platforms, setting this flag will
+      be a no-op. RBE requires permissions to JAX's remote worker pool. Only
+      Googlers and CI builds can use RBE.
+      """,
+  )
+
+def add_clang_argument(parser: argparse.ArgumentParser):
+  """Add Clang compiler argument to the parser."""
+  parser.add_argument(
+      "--use_clang",
+      type=bool,
+      action="store_true",
+      default=False,
+      help="""
+      If set, the build will use Clang as the C++ compiler. Requires Clang to
+      be present on the PATH or a path is given with --clang_path. CI builds use
+      Clang by default.
+      """,
+  )
+
+  parser.add_argument(
+    "--clang_path",
+    type=str,
+    default="",
+    help="""
+    Path to the Clang binary to use. If not set and --use_clang is set, the
+    build will attempt to find Clang on the PATH.
+    """,
+  )
+
+def get_bazelrc_config(os_name: str, arch: str, artifact: str, mode:str, use_rbe: bool):
   """Returns the bazelrc config for the given architecture, OS, and build type."""
   bazelrc_config="{}_{}".format(os_name, arch)
 
-  if os_name == "linux" and arch == "x86_64":
-    bazelrc_config = "rbe_" + bazelrc_config
+  if mode == "local":
+    # RBE is only supported on Linux x86 and Windows
+    if use_rbe and (os_name == "linux" or os_name == "windows") and arch == "x86_64":
+      bazelrc_config = "rbe_" + bazelrc_config
+    else:
+      bazelrc_config = "local_" + bazelrc_config
   else:
-    bazelrc_config = "ci_" + bazelrc_config
+    # RBE is only supported on Linux x86 and Windows
+    if (os_name == "linux" or os_name == "windows") and arch == "x86_64":
+      bazelrc_config = "rbe_" + bazelrc_config
+    else:
+      bazelrc_config = "ci_" + bazelrc_config
 
   if artifact == "jax-cuda-plugin" or artifact == "jax-cuda-pjrt":
     bazelrc_config = bazelrc_config + "_cuda"
@@ -96,14 +143,16 @@ async def main():
   )
 
   parser.add_argument(
-      "--release",
-      action="store_true",
+      "--mode",
+      type=str,
+      choices=["release", "local"],
+      default="local",
       help="""
         Flags as requesting a release or release like build.  Setting this flag
         will assume multiple settings expected in release and CI builds. These
         are set by the release options in .bazelrc. To see best how this flag
         resolves you can run the artifact of choice with "--release -dry-run" to
-        get the commands issued to bazel for that artifact
+        get the commands issued to Bazel for that artifact.
     """,
   )
   parser.add_argument(
@@ -150,6 +199,11 @@ async def main():
 
   # Get the host systems architecture
   arch = platform.machine()
+  # On Windows, this returns "amd64" instead of "x86_64. However, they both
+  # are essentially the same.
+  if arch.lower() == "amd64":
+    arch = "x86_64"
+
   # Get the host system OS
   os_name = platform.system().lower()
 
@@ -162,7 +216,9 @@ async def main():
     logger.info("Building jax...")
   elif args.command == "jaxlib":
     logger.info(
-        f"Building jaxlib with python version {args.python_version} for system {args.target_system}"
+        "Building jaxlib with python version %s for system %s",
+        args.python_version,
+        args.target_system,
     )
   elif args.command == "jax-cuda-plugin":
     logger.info("Building plugin...")
@@ -185,7 +241,7 @@ async def main():
   bazel_command.append("build")
 
   bazel_command.append(
-      "--config={}".format(get_bazelrc_config(os_name, arch, args.command))
+      "--config={}".format(get_bazelrc_config(os_name, arch, args.command, args.mode, args.use_rbe))
   )
   if hasattr(args, "python_version"):
     bazel_command.append(

@@ -23,11 +23,8 @@ export JAXCI_DOCKER_ARGS=""
 # the system version of Python.
 export JAXCI_HERMETIC_PYTHON_VERSION=${JAXCI_HERMETIC_PYTHON_VERSION:-}
 
-# Controls the location where the artifacts are stored on the Docker container. 
-# When specifying dependencies on local wheels, Bazel will look for them in
-# the ../dist directory. This can be overridden by the setting
-# `local_wheel_dist_folder`
-export JAXCI_OUTPUT_DIR="/jax/dist"
+# Controls the location where the artifacts are stored on the Docker container.
+export JAXCI_OUTPUT_DIR="$JAXCI_CONTAINER_WORK_DIR/dist"
 
 # Test specific environment variables. Used by `run_bazel_test.sh` and
 # `run_pytest.sh`

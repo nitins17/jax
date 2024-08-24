@@ -38,6 +38,9 @@ if ! docker container inspect jax >/dev/null 2>&1 ; then
     JAXCI_DOCKER_ARGS="$JAXCI_DOCKER_ARGS -v $HOME/.config/gcloud:/root/.config/gcloud"
   fi
 
+  # When running `bazel test` and specifying dependencies on local wheels, 
+  # Bazel will look for them in the ../dist directory by default. This can be
+  # overridden by the setting `local_wheel_dist_folder`.
   docker run $JAXCI_DOCKER_ARGS --name jax -w $JAXCI_CONTAINER_WORK_DIR -itd --rm \
       -v "$JAXCI_GIT_DIR:$JAXCI_CONTAINER_WORK_DIR" \
       -e JAXCI_OUTPUT_DIR=$JAXCI_OUTPUT_DIR \
