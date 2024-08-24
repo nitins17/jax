@@ -4,4 +4,4 @@ source ci/envs/build_artifacts/jaxlib/common
 
 # Enable wheel audit to check for manylinux compliance.
 export JAXCI_WHEEL_AUDIT_ENABLE=1
-export JAXCI_DOCKER_IMAGE="us-central1-docker.pkg.dev/tensorflow-sigs/tensorflow/build-arm64:jax-latest-multi-python"
+export JAXCI_DOCKER_IMAGE="us-central1-docker.pkg.dev/tensorflow-sigs/tensorflow/build-arm64:tf-2-18-multi-python"
