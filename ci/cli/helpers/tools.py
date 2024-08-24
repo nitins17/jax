@@ -57,35 +57,24 @@ BAZELISK_PACKAGES = {
         ),
     ),
 }
-# Get current python version as a matrix enum
 
-# Get current system cuda version (if present) as a matrix enum
+def guess_clang_paths(clang_path_flag):
+  """
+  Yields a sequence of guesses about Clang path. Some of sequence elements
+  can be None. The resulting iterator is lazy and potentially has a side
+  effects.
+  """
 
-# Get current system data as a matrix enum
+  yield clang_path_flag
+  yield shutil.which("clang")
 
-# Get current system bazel version
-
-# Get current system clang information (path and version)
-def get_clang_path():
-  which_clang_output = shutil.which("clang")
-  if which_clang_output:
-    # If we've found a clang on the path, need to get the fully resolved path
-    # to ensure that system headers are found.
-    return str(pathlib.Path(which_clang_output).resolve())
-  else:
-    raise Exception("Clang cannot be found in path")
-
-def get_clang_major_version(clang_path: str):
-  clang_version_proc = subprocess.run(
-      [clang_path, "-E", "-P", "-"],
-      input="__clang_major__",
-      check=True,
-      capture_output=True,
-      text=True,
-  )
-  major_version = int(clang_version_proc.stdout)
-
-  return major_version
+def get_clang_path(clang_path_flag):
+  for clang_path in guess_clang_paths(clang_path_flag):
+    if clang_path:
+      absolute_clang_path = os.path.realpath(clang_path)
+      logger.info("Found path to Clang: %s.", absolute_clang_path)
+      return absolute_clang_path
+  logger.warning("Could not find path to Clang. Continuing without Clang.")
 
 def get_jax_supported_bazel_version(filename: str = ".bazelversion"):
   """Reads the contents of .bazelversion into a string.

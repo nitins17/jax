@@ -69,45 +69,6 @@ def add_cudnn_argument(parser: argparse.ArgumentParser):
       help="cuDNN version to use",
   )
 
-def add_rbe_argument(parser: argparse.ArgumentParser):
-  """Add RBE mode to the parser."""
-  parser.add_argument(
-      "--use_rbe",
-      type=bool,
-      action="store_true",
-      default=False,
-      help="""
-      If set, the build will use RBE where possible. Currently, only Linux x86
-      and Windows builds can use RBE. On other platforms, setting this flag will
-      be a no-op. RBE requires permissions to JAX's remote worker pool. Only
-      Googlers and CI builds can use RBE.
-      """,
-  )
-
-def add_clang_argument(parser: argparse.ArgumentParser):
-  """Add Clang compiler argument to the parser."""
-  parser.add_argument(
-      "--use_clang",
-      type=bool,
-      action="store_true",
-      default=False,
-      help="""
-      If set, the build will use Clang as the C++ compiler. Requires Clang to
-      be present on the PATH or a path is given with --clang_path. CI builds use
-      Clang by default.
-      """,
-  )
-
-  parser.add_argument(
-    "--clang_path",
-    type=str,
-    default="",
-    help="""
-    Path to the Clang binary to use. If not set and --use_clang is set, the
-    build will attempt to find Clang on the PATH.
-    """,
-  )
-
 def get_bazelrc_config(os_name: str, arch: str, artifact: str, mode:str, use_rbe: bool):
   """Returns the bazelrc config for the given architecture, OS, and build type."""
   bazelrc_config="{}_{}".format(os_name, arch)
@@ -117,6 +78,8 @@ def get_bazelrc_config(os_name: str, arch: str, artifact: str, mode:str, use_rbe
     if use_rbe and (os_name == "linux" or os_name == "windows") and arch == "x86_64":
       bazelrc_config = "rbe_" + bazelrc_config
     else:
+      if use_rbe:
+        logger.warning("RBE is not supported on %s_%s. Using Local config instead.", os_name, arch)
       bazelrc_config = "local_" + bazelrc_config
   else:
     # RBE is only supported on Linux x86 and Windows
@@ -138,7 +101,7 @@ def get_jaxlib_git_hash():
 async def main():
   parser = argparse.ArgumentParser(
       description=(
-          "JAX CLI for building/testing JAX, jaxlib, plugins, and pjrt."
+          "JAX CLI for building/testing jaxlib, jaxl-cuda-plugin, and jax-cuda-pjrt."
       ),
   )
 
@@ -147,23 +110,68 @@ async def main():
       type=str,
       choices=["release", "local"],
       default="local",
-      help="""
+      help=
+        """
         Flags as requesting a release or release like build.  Setting this flag
         will assume multiple settings expected in release and CI builds. These
         are set by the release options in .bazelrc. To see best how this flag
         resolves you can run the artifact of choice with "--release -dry-run" to
         get the commands issued to Bazel for that artifact.
-    """,
+        """,
   )
+
+  parser.add_argument(
+      "--build_target_only",
+      action="store_true",
+      help="If set, the tool will only build the target and not the wheel.",
+  )
+
   parser.add_argument(
       "--bazel_path",
       type=str,
-      help=(
-          "Path to the Bazel binary to use. The default is to find bazel via "
-          "the PATH; if none is found, downloads a fresh copy of Bazelisk from "
-          "GitHub."
-      ),
+      default="",
+      help=
+        """
+        Path to the Bazel binary to use. The default is to find bazel via the
+        PATH; if none is found, downloads a fresh copy of Bazelisk from 
+        GitHub.
+        """,
   )
+
+  parser.add_argument(
+      "--use_rbe",
+      action="store_true",
+      help=
+        """
+        If set, the build will use RBE where possible. Currently, only Linux x86
+        and Windows builds can use RBE. On other platforms, setting this flag will
+        be a no-op. RBE requires permissions to JAX's remote worker pool. Only
+        Googlers and CI builds can use RBE.
+        """,
+  )
+
+  parser.add_argument(
+    "--use_clang",
+    action="store_true",
+    help=
+      """
+      If set, the build will use Clang as the C++ compiler. Requires Clang to
+      be present on the PATH or a path is given with --clang_path. CI builds use
+      Clang by default.
+      """,
+  )
+
+  parser.add_argument(
+    "--clang_path",
+    type=str,
+    default="",
+    help=
+      """
+      Path to the Clang binary to use. If not set and --use_clang is set, the
+      build will attempt to find Clang on the PATH.
+      """,
+  )
+
   parser.add_argument(
       "--dry_run",
       action="store_true",
@@ -177,9 +185,6 @@ async def main():
   subparsers = parser.add_subparsers(
       dest="command", required=True, help="Artifact to build"
   )
-
-  # JAX subcommand
-  jax_parser = subparsers.add_parser("jax", help="Builds the JAX wheel package.")
 
   # Jaxlib subcommand
   jaxlib_parser = subparsers.add_parser("jaxlib", help="Builds the jaxlib package.")
@@ -238,7 +243,17 @@ async def main():
   bazel_command = command.CommandBuilder(bazel_path)
   # Temporary; when we make the new scripts as the default we can remove this.
   bazel_command.append("--bazelrc=ci/.bazelrc")
+
   bazel_command.append("build")
+
+  if args.use_clang:
+      # Find the path to Clang
+    clang_path = tools.get_clang_path(args.clang_path)
+    if clang_path:
+      bazel_command.append("--action_env CLANG_COMPILER_PATH='{}'".format(clang_path))
+      bazel_command.append("--repo_env CC='{}'".format(clang_path))
+      bazel_command.append("--repo_env BAZEL_COMPILER='{}'".format(clang_path))
+      bazel_command.append("--config=clang")
 
   bazel_command.append(
       "--config={}".format(get_bazelrc_config(os_name, arch, args.command, args.mode, args.use_rbe))
@@ -259,24 +274,27 @@ async def main():
 
   await executor.run(bazel_command.command)
 
-  logger.info("Building wheel...")
-  run_wheel_binary = command.CommandBuilder(wheel_binary)
+  if not args.build_target_only:
+    logger.info("Building wheel...")
+    run_wheel_binary = command.CommandBuilder(wheel_binary)
 
-  output_dir = os.environ["JAXCI_OUTPUT_DIR"]
-  run_wheel_binary.append("--output_path={}".format(output_dir))
+    # Read output directory from environment variable. If not set, set it to
+    # dist/ in the current working directory.
+    output_dir = os.getenv("JAXCI_OUTPUT_DIR", os.path.join(os.getcwd(), "dist"))
+    run_wheel_binary.append("--output_path={}".format(output_dir))
 
-  run_wheel_binary.append("--cpu={}".format(arch))
+    run_wheel_binary.append("--cpu={}".format(arch))
 
-  if args.command == "jax-cuda-plugin" or args.command == "jax-cuda-pjrt":
-    run_wheel_binary.append("--enable-cuda=True")
-    major_cuda_version = args.cuda_version.split(".")[0]
-    run_wheel_binary.append("--platform_version={}".format(major_cuda_version))
+    if args.command == "jax-cuda-plugin" or args.command == "jax-cuda-pjrt":
+      run_wheel_binary.append("--enable-cuda=True")
+      major_cuda_version = args.cuda_version.split(".")[0]
+      run_wheel_binary.append("--platform_version={}".format(major_cuda_version))
 
-  jaxlib_git_hash = get_jaxlib_git_hash()
-  run_wheel_binary.append("--jaxlib_git_hash={}".format(jaxlib_git_hash))
+    jaxlib_git_hash = get_jaxlib_git_hash()
+    run_wheel_binary.append("--jaxlib_git_hash={}".format(jaxlib_git_hash))
 
-  logger.info("%s\n", run_wheel_binary.command)
-  await executor.run(run_wheel_binary.command)
+    logger.info("%s\n", run_wheel_binary.command)
+    await executor.run(run_wheel_binary.command)
 
 if __name__ == "__main__":
   asyncio.run(main())
