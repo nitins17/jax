@@ -52,3 +52,5 @@ if ! docker container inspect jax >/dev/null 2>&1 ; then
   fi
 fi
 jaxrun() { docker exec jax "$@"; }
+
+jaxrun git config --global --add safe.directory $JAXCI_CONTAINER_WORK_DIR
