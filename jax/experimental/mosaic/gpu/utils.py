@@ -309,6 +309,8 @@ ds = DynamicSlice
 def memref_slice(ref: ir.Value, index) -> ir.Value:
   ref_ty = ir.MemRefType(ref.type)
   base_indices, slice_shape, is_squeezed = parse_indices(index, ref_ty.shape)
+  # TODO(apaszke): Check that slice is within the memref (indices might be
+  # dynamic, but we can at least catch some OOB slices).
 
   memref_strides, offset = ref_ty.get_strides_and_offset()
   new_offset = offset
@@ -503,9 +505,22 @@ def parse_indices(
 
 
 def commit_shared():
-  gpu.barrier()
+  warpgroup_barrier()
   nvvm.fence_proxy(
       nvvm.ProxyKind.async_shared, space=nvvm.SharedSpace.shared_cta
+  )
+
+
+def warpgroup_barrier():
+  # gpu.barrier() uses barrier number 0, and it would be unsafe to reuse it,
+  # so we shift the warpgroup index by 1.
+  i32 = ir.IntegerType.get_signless(32)
+  llvm.inline_asm(
+      ir.Type.parse("!llvm.void"),
+      [arith.addi(warpgroup_idx(sync=False), c(1, i32))],
+      f"bar.sync $0, {WARPGROUP_SIZE};",
+      "r",
+      has_side_effects=True,
   )
 
 
@@ -699,8 +714,11 @@ class CollectiveBarrierRef:
         has_side_effects=True,
     )
 
-  def wait(self):
-    self.barrier.wait()
+  def wait(self, *args, **kwargs):
+    self.barrier.wait(*args, **kwargs)
+
+  def wait_parity(self, *args, **kwargs):
+    self.barrier.wait_parity(*args, **kwargs)
 
 
 class Partition:

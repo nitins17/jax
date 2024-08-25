@@ -483,10 +483,9 @@ def _traceback_to_location(ctx: ModuleContext, tb: xc.Traceback) -> ir.Location:
   return loc
 
 def _source_info_to_location(
-    ctx: ModuleContext, primitive: core.Primitive, params: dict[str, Any],
+    ctx: ModuleContext, primitive: core.Primitive,
     source_info: source_info_util.SourceInfo) -> ir.Location:
-  eqn_str = (f'{source_info.name_stack}/'
-             f'{core.str_eqn_compact(primitive, params)}')
+  eqn_str = f'{source_info.name_stack}/{primitive.name}'
   if config.include_full_tracebacks_in_locations.value:
     if source_info.traceback is None:
       loc = ir.Location.unknown()
@@ -1000,7 +999,7 @@ def _to_xla_layout(layout: DeviceLocalLayout | None | AutoLayout,
     return "auto"
   if aval is core.abstract_token:
     return "default"
-  return layout._to_xla_layout(aval.dtype)  # type: ignore
+  return str(layout._to_xla_layout(aval.dtype))  # type: ignore
 
 
 def _get_mem_kind(s: JSharding | None) -> str | None:
@@ -1120,14 +1119,15 @@ def lower_jaxpr_to_module(
     # XLA computation preserves the module name.
     attrs = ctx.module.operation.attributes
     if config.use_shardy_partitioner.value:
-      assert (isinstance(axis_context, sharding_impls.ShardingContext) and
-              axis_context.mesh_shape is not None)
-      ctx.module.body.append(
-          dialects.sdy.MeshOp(
-              "mesh",
-              dialects.sdy.MeshAttr.get(
-                  [dialects.sdy.MeshAxisAttr.get(name, size)
-                  for name, size in axis_context.mesh_shape])))
+      if (isinstance(axis_context, sharding_impls.ShardingContext) and
+          axis_context.mesh_shape is not None):
+        sdy_mesh_attr = dialects.sdy.MeshAttr.get(
+                          [dialects.sdy.MeshAxisAttr.get(name, size)
+                          for name, size in axis_context.mesh_shape])
+      else:
+        sdy_mesh_attr = dialects.sdy.MeshAttr.get([])
+
+      ctx.module.body.append(dialects.sdy.MeshOp("mesh", sdy_mesh_attr))
     module_name = _module_name_regex.sub("_", module_name)
     attrs["sym_name"] = ir.StringAttr.get(module_name)
     attrs["mhlo.num_replicas"] = i32_attr(num_replicas)
@@ -1634,7 +1634,15 @@ def replicate_trailing_dims(ctx, val: ir.Value, aval) -> ir.Value:
   # For example: if the key.shape is (8, 2) and key_data(key).shape is (8, 2, 2),
   # then the sharding will be P(P.UNCONSTRAINED, P.UNCONSTRAINED, None).
   # The below custom call achieves the sharding like above example.
-  return wrap_with_sharding_op(
+  if config.use_shardy_partitioner.value:
+    physical_ndim = core.physical_aval(aval).ndim
+    s = sharding.SdyArraySharding(
+        mesh_name='mesh',
+        dimension_shardings=[sharding.SdyDimSharding(axes=[], is_closed=i >= aval.ndim)
+                             for i in range(physical_ndim)])
+    return wrap_with_sharding_op(ctx, val, aval, s)
+  else:
+    return wrap_with_sharding_op(
       ctx, val, aval, xc.HloSharding.replicate().to_proto(),
       unspecified_dims=set(range(aval.ndim)))
 
@@ -1745,7 +1753,7 @@ def jaxpr_subcomp(ctx: ModuleContext, jaxpr: core.Jaxpr,
     in_nodes = map(read, eqn.invars)
     source_info = eqn.source_info.replace(
         name_stack=name_stack + eqn.source_info.name_stack)
-    loc = _source_info_to_location(ctx, eqn.primitive, eqn.params, source_info)
+    loc = _source_info_to_location(ctx, eqn.primitive, source_info)
     with source_info_util.user_context(eqn.source_info.traceback), loc:
       override_rule = get_override_lowering_rule(eqn.primitive)
       platform_rules: dict[str, LoweringRule] = {}

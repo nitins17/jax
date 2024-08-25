@@ -85,12 +85,6 @@ partial = functools.partial
 map, unsafe_map = safe_map, map  # pylint: disable=redefined-builtin
 zip, unsafe_zip = safe_zip, zip  # pylint: disable=redefined-builtin
 
-UNSIGNED_TO_SIGNED = {
-    np.dtype('uint8'): np.dtype('int8'),
-    np.dtype('uint16'): np.dtype('int16'),
-    np.dtype('uint32'): np.dtype('int32'),
-    np.dtype('uint64'): np.dtype('int64'),
-}
 
 @dataclasses.dataclass
 class MeshContext:
@@ -298,6 +292,7 @@ class MosaicGridMapping:
     self.jaxpr = jaxpr
     self.block_mappings = grid_mapping.block_mappings
     self.mapped_dims = grid_mapping.vmapped_dims
+    # TODO(mvoz): Generalize to not need this
     user_grid = tuple(
         g for i, g in enumerate(self.grid) if i not in self.mapped_dims
     )
@@ -345,9 +340,19 @@ class MosaicGridMapping:
         for _ in range(len(self.grid))
     ])
     self._prepare_mesh_info(mesh)
-    def _get_grid_indices(indices):
-      return indices
-    self.get_grid_indices = _get_grid_indices
+
+    if grid_mapping.get_grid_indices is None:
+
+      def _get_grid_indices(indices, maybe_include_mapped_dims: bool):
+        if maybe_include_mapped_dims:
+          return indices
+        return tuple(
+            idx for i, idx in enumerate(indices) if i not in self.mapped_dims
+        )
+
+      self.get_grid_indices = _get_grid_indices
+    else:
+      self.get_grid_indices = grid_mapping.get_grid_indices
 
   def _prepare_mesh_info(self, mesh: mesh_lib.Mesh | None):
     if not self.has_communication:
@@ -595,7 +600,9 @@ def lower_jaxpr_to_transform_func(
   ]
   def body_func(*args):
     grid_indices, scalar_prefetch = split_list(args, [num_grid])
-    jaxpr_indices = mosaic_grid_mapping.get_grid_indices(grid_indices)
+    jaxpr_indices = mosaic_grid_mapping.get_grid_indices(
+        grid_indices, maybe_include_mapped_dims=True
+    )
     arg_block_shapes = [
         *[()] * len(jaxpr_indices),
         *mosaic_grid_mapping.scalar_prefetch_block_shapes,
@@ -663,9 +670,9 @@ def lower_jaxpr_to_func(
   def body_func(*args):
     grid_indices, scalar_prefetch, operands_and_scratch = split_list(
         args, [num_grid, num_scalar_prefetch])
-    grid_indices = mosaic_grid_mapping.get_grid_indices(grid_indices)
-    jaxpr_indices = tuple(idx for i, idx in enumerate(grid_indices)
-                          if i not in mosaic_grid_mapping.mapped_dims)
+    jaxpr_indices = mosaic_grid_mapping.get_grid_indices(
+        grid_indices, maybe_include_mapped_dims=False
+    )
     mesh_info = mosaic_grid_mapping.mesh_info
     if mesh_info is not None:
       mesh_context = MeshContext(
@@ -775,9 +782,7 @@ def jaxpr_subcomp(
     source_info = eqn.source_info.replace(
         name_stack=ctx.name_stack + eqn.source_info.name_stack
     )
-    loc = mlir._source_info_to_location(
-        ctx, eqn.primitive, eqn.params, source_info
-    )
+    loc = mlir._source_info_to_location(ctx, eqn.primitive, source_info)
     with source_info_util.user_context(eqn.source_info.traceback), loc:
       if eqn.primitive in lowering_rules:
         if eqn.primitive not in skip_mlir_conversions:
@@ -1080,6 +1085,13 @@ def _load_lowering_rule(ctx: LoweringRuleContext, *args_flat, args_tree, **_):
       raise ValueError("Can only load scalars from SMEM")
     return _maybe_cast_load_to_bool(
         aval_out, memref.LoadOp(ref, starts).result)
+  elif str(ref_type.memory_space) != "#tpu.memory_space<vmem>":
+    extra = ""
+    if str(ref_type.memory_space) == "#tpu.memory_space<any>":
+      extra = " ANY memory space can only be accessed using async_copy."
+    raise ValueError(
+        "Loads are only allowed on VMEM and SMEM references." + extra
+    )
   load_aval = jax_core.ShapedArray(sizes, dtype=ref_aval.dtype)
   if need_stride:
     load_val = tpu.StridedLoadOp(
@@ -1215,6 +1227,13 @@ def _masked_swap_lowering_rule(
     val = _maybe_cast_store_to_memref_type(val_aval, val)
     memref.StoreOp(val, ref, starts)
     return result
+  elif str(ref_type.memory_space) != "#tpu.memory_space<vmem>":
+    extra = ""
+    if str(ref_type.memory_space) == "#tpu.memory_space<any>":
+      extra = " ANY memory space can only be accessed using async_copy."
+    raise ValueError(
+        "Loads and stores are only allowed on VMEM and SMEM references." + extra
+    )
   mem_slice_shape = list(aval_out.shape)
   for i, a in enumerate(idx_aval.indices):
     if not isinstance(a, primitives.Slice):
@@ -1518,6 +1537,12 @@ def _convert_helper(x, *, to_dtype):
     if jnp.issubdtype(to_dtype, jnp.floating) and to_dtype.itemsize < 4:
       x = x.astype(jnp.float32)
     return x.astype(to_dtype)
+  if jnp.issubdtype(from_dtype, jnp.unsignedinteger):
+    if from_dtype.itemsize < 4:
+      x = x.astype(jnp.uint32)
+    if jnp.issubdtype(to_dtype, jnp.floating) and to_dtype.itemsize < 4:
+      x = x.astype(jnp.float32)
+    return x.astype(to_dtype)
   if jnp.issubdtype(from_dtype, jnp.floating):
     if jnp.issubdtype(to_dtype, jnp.signedinteger):
       if from_dtype.itemsize < 4:
@@ -1542,10 +1567,6 @@ def _convert_element_type_lowering_rule(
   old_dtype = ctx.avals_in[0].dtype
   out_type = aval_to_ir_type(out_aval)
 
-  # TODO(justinfu): Remove after mosaic supports unsigned types.
-  # This conversion makes mosaic interpret all unsigned types as signed types.
-  if np.issubdtype(new_dtype, jnp.unsignedinteger):
-    new_dtype = UNSIGNED_TO_SIGNED[new_dtype]
   if old_dtype == new_dtype:
     return x
   if jnp.issubdtype(old_dtype, jnp.floating) and jnp.issubdtype(
@@ -1555,18 +1576,21 @@ def _convert_element_type_lowering_rule(
       return arith.ExtFOp(out_type, x).result
     elif old_dtype.itemsize > new_dtype.itemsize and old_dtype.itemsize == 4:
       return arith.TruncFOp(out_type, x).result
-  elif jnp.issubdtype(old_dtype, jnp.signedinteger) and jnp.issubdtype(
-      new_dtype, jnp.signedinteger
+  elif jnp.issubdtype(old_dtype, jnp.integer) and jnp.issubdtype(
+      new_dtype, jnp.integer
   ):
     if old_dtype.itemsize < new_dtype.itemsize and new_dtype.itemsize == 4:
       return arith.ExtSIOp(out_type, x).result
     elif old_dtype.itemsize > new_dtype.itemsize and old_dtype.itemsize == 4:
       return arith.TruncIOp(out_type, x).result
+    elif jnp.iinfo(old_dtype).bits == jnp.iinfo(new_dtype).bits:
+      # This case triggers when casting signed to unsigned or vice versa.
+      return x
   elif jnp.issubdtype(old_dtype, jnp.floating) and jnp.issubdtype(
       new_dtype, jnp.signedinteger
   ) and old_dtype.itemsize == new_dtype.itemsize == 4:
     return arith.FPToSIOp(out_type, x).result
-  elif jnp.issubdtype(old_dtype, jnp.signedinteger) and jnp.issubdtype(
+  elif jnp.issubdtype(old_dtype, jnp.integer) and jnp.issubdtype(
       new_dtype, jnp.floating
   ) and old_dtype.itemsize == new_dtype.itemsize == 4:
     return arith.SIToFPOp(out_type, x).result
@@ -2365,6 +2389,7 @@ lowering_rules[debugging.debug_callback_p] = _debug_callback_lowering_rule
 
 
 def _program_id_lowering_rule(ctx: LoweringRuleContext, *, axis: int):
+
   if ctx.lowering_context.user_grid_indices is None:
     raise ValueError(
         f"program id: {axis} was passed, but user did not provide a grid."

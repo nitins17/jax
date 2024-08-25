@@ -80,16 +80,7 @@ def pallas_call_tpu_lowering_rule(
   if debug:
     print(f"\nThe kernel jaxpr for pallas_call {name_and_src_info}:")
     print(jaxpr)
-  if "mosaic_params" in compiler_params:
-    # TODO(slebedev): Remove this branch after July 12th 2024.
-    warnings.warn(
-        "Passing Mosaic parameters via compiler_params=dict(mosaic_params=...)"
-        " is deprecated. Use compiler_params=dict(mosaic=...) instead.",
-        DeprecationWarning,
-    )
-    assert "mosaic" not in compiler_params
-    mosaic_params = compiler_params["mosaic_params"]
-  elif "mosaic" in compiler_params:
+  if "mosaic" in compiler_params:
     mosaic_params = compiler_params["mosaic"]
   else:
     mosaic_params = {}
@@ -217,6 +208,7 @@ def pallas_call_tpu_lowering_rule(
       device_type=mosaic_params.get("device_type"),
       internal_scratch_in_bytes=mosaic_params.get("internal_scratch_in_bytes"),
       collective_id=mosaic_params.get("collective_id", None),
+      output_memory_spaces=None,  # TODO(apaszke,sharadmv): Implement this.
   )
   _maybe_cast_to_bool = lambda x, aval: x.astype(
       jax.numpy.bool_) if aval.dtype == jax.numpy.bool_ else x

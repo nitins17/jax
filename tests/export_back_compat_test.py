@@ -45,6 +45,7 @@ from jax._src.internal_test_util.export_back_compat_test_data import cpu_svd_lap
 from jax._src.internal_test_util.export_back_compat_test_data import cpu_triangular_solve_blas_trsm
 from jax._src.internal_test_util.export_back_compat_test_data import cuda_threefry2x32
 from jax._src.internal_test_util.export_back_compat_test_data import cuda_lu_pivots_to_permutation
+from jax._src.internal_test_util.export_back_compat_test_data import cuda_lu_cusolver_getrf
 from jax._src.internal_test_util.export_back_compat_test_data import tpu_Eigh
 from jax._src.internal_test_util.export_back_compat_test_data import tpu_Lu
 from jax._src.internal_test_util.export_back_compat_test_data import tpu_ApproxTopK
@@ -113,6 +114,7 @@ class CompatTest(bctu.CompatTestBase):
     targets_to_cover = set(_export._CUSTOM_CALL_TARGETS_GUARANTEED_STABLE)
     cpu_ffi_testdatas = [
         cpu_cholesky_lapack_potrf.data_2024_05_31,
+        cpu_qr_lapack_geqrf.data_2024_08_22,
         cpu_lu_lapack_getrf.data_2024_05_31,
         cpu_svd_lapack_gesdd.data_2024_08_13,
     ]
@@ -127,7 +129,9 @@ class CompatTest(bctu.CompatTestBase):
         cuda_threefry2x32.data_2023_03_15, cuda_threefry2x32.data_2024_07_30,
         cpu_lu_lapack_getrf.data_2023_06_14,
         cuda_lu_pivots_to_permutation.data_2024_08_08,
-        cuda_qr_cusolver_geqrf.data_2023_03_18, cuda_eigh_cusolver_syev.data_2023_03_17,
+        cuda_lu_cusolver_getrf.data_2024_08_19,
+        cuda_qr_cusolver_geqrf.data_2023_03_18,
+        cuda_eigh_cusolver_syev.data_2023_03_17,
         rocm_qr_hipsolver_geqrf.data_2024_08_05,
         rocm_eigh_hipsolver_syev.data_2024_08_05,
         cpu_schur_lapack_gees.data_2023_07_16,
@@ -356,6 +360,24 @@ class CompatTest(bctu.CompatTestBase):
     data = self.load_testdata(cuda_lu_pivots_to_permutation.data_2024_08_08)
     self.run_one_test(func, data)
 
+  @parameterized.named_parameters(
+      dict(testcase_name=f"_dtype={dtype_name}",
+           dtype_name=dtype_name)
+      for dtype_name in ("f32", "f64", "c64", "c128"))
+  def test_cuda_lu_lapack_getrf(self, dtype_name:str):
+    if not config.enable_x64.value and dtype_name in ["f64", "c128"]:
+      self.skipTest("Test disabled for x32 mode")
+    if jaxlib_version < (0, 4, 32):
+      self.skipTest("Not implemented in older versions of jaxlib")
+    dtype = dict(f32=np.float32, f64=np.float64,
+                 c64=np.complex64, c128=np.complex128)[dtype_name]
+    shape = (3, 4)
+    func = lambda: CompatTest.lu_harness(shape, dtype)
+    # TODO(b/360788062): Clean up after the compatibility period.
+    with config.export_ignore_forward_compatibility(True):
+      data = self.load_testdata(cuda_lu_cusolver_getrf.data_2024_08_19[dtype_name])
+      self.run_one_test(func, data)
+
   @staticmethod
   def qr_harness(shape, dtype):
     # In order to keep inputs small, we construct the input programmatically
@@ -376,6 +398,15 @@ class CompatTest(bctu.CompatTestBase):
     data = self.load_testdata(cpu_qr_lapack_geqrf.data_2023_03_17[dtype_name])
     rtol = dict(f32=1e-3, f64=1e-5, c64=1e-3, c128=1e-5)[dtype_name]
     self.run_one_test(func, data, rtol=rtol)
+    # TODO(b/344892332): Remove the check after the compatibility period.
+    has_xla_ffi_support = jaxlib_version >= (0, 4, 32)
+    if has_xla_ffi_support:
+      with config.export_ignore_forward_compatibility(True):
+        # FFI Kernel test
+        data = self.load_testdata(
+            cpu_qr_lapack_geqrf.data_2024_08_22[dtype_name]
+        )
+        self.run_one_test(func, data, rtol=rtol)
 
   @parameterized.named_parameters(
       dict(testcase_name=f"_dtype={dtype_name}_{batched}",

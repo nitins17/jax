@@ -402,6 +402,8 @@ class PJitTest(jtu.BufferDonationTestCase):
 
   @jtu.run_on_devices('tpu')
   def testBufferDonationWithOutputShardingInferenceAndTokens(self):
+    if config.use_shardy_partitioner.value:
+      self.skipTest('b/355263220: Shardy does not support callbacks yet.')
     mesh = jtu.create_global_mesh((2,), 'x')
     s = NamedSharding(mesh, P('x'))
 
@@ -453,10 +455,16 @@ class PJitTest(jtu.BufferDonationTestCase):
                         check_dtypes=False)
 
     hlo = f.lower(np.ones(shape)).compiler_ir()
-    # Annotation from with_sharding_constraint
-    self.assertIn('sharding = "{devices=[2,1]<=[2]}"', str(hlo))
-    # Annotation from pjit
-    self.assertIn('sharding = "{replicated}"', str(hlo))
+    if config.use_shardy_partitioner.value:
+      # Annotation from with_sharding_constraint
+      self.assertIn('<@mesh, [{"x"}, {"y"}]>', str(hlo))
+      # Annotation from pjit
+      self.assertIn('sharding = #sdy.sharding<@mesh, [{}, {}]>}', str(hlo))
+    else:
+      # Annotation from with_sharding_constraint
+      self.assertIn('sharding = "{devices=[2,1]<=[2]}"', str(hlo))
+      # Annotation from pjit
+      self.assertIn('sharding = "{replicated}"', str(hlo))
 
   def testShardingConstraintWithArray(self):
     mesh = jtu.create_global_mesh((2, 1), ('x', 'y'))
@@ -484,6 +492,8 @@ class PJitTest(jtu.BufferDonationTestCase):
     self.assertIn("sharding={replicated}", hlo.as_hlo_text())
 
   def testShardingConstraintWithArrayOpSharding(self):
+    if config.use_shardy_partitioner.value:
+      self.skipTest("Shardy doesn't support PositionalSharding")
     shape = (8, 8)
     mesh = jtu.create_global_mesh((2, 1), ('x', 'y'))
     s = NamedSharding(mesh, P(None))
@@ -555,8 +565,12 @@ class PJitTest(jtu.BufferDonationTestCase):
     self.assertLen(actual[0]['a'].addressable_shards, 4)
 
     mlir_str = str(f.lower(x).compiler_ir())
-    self.assertIn("unspecified_dims=[0]", mlir_str)
-    self.assertIn("unspecified_dims=[1]", mlir_str)
+    if config.use_shardy_partitioner.value:
+      self.assertIn('<@mesh, [{?}, {"y"}, {}]>', mlir_str)
+      self.assertIn('<@mesh, [{"x"}, {?}, {}]>', mlir_str)
+    else:
+      self.assertIn("unspecified_dims=[0]", mlir_str)
+      self.assertIn("unspecified_dims=[1]", mlir_str)
 
   @jtu.with_mesh([('x', 2), ('y', 2)])
   def testShardingConstraintPyTreeVmapWithUnconstrainedDims(self):
@@ -575,8 +589,12 @@ class PJitTest(jtu.BufferDonationTestCase):
     x = [{'a': v, 'b': v * 2}, v * 3]
 
     mlir_str = str(f.lower(x).compiler_ir())
-    self.assertIn("unspecified_dims=[0,1]", mlir_str)
-    self.assertIn("unspecified_dims=[0,2]", mlir_str)
+    if config.use_shardy_partitioner.value:
+      self.assertIn('<@mesh, [{?}, {?}, {"y"}]>', mlir_str)
+      self.assertIn('<@mesh, [{?}, {"x"}, {?}]>', mlir_str)
+    else:
+      self.assertIn("unspecified_dims=[0,1]", mlir_str)
+      self.assertIn("unspecified_dims=[0,2]", mlir_str)
 
   def testCaching(self):
     def f(x):
@@ -635,18 +653,16 @@ class PJitTest(jtu.BufferDonationTestCase):
 
   @jtu.with_mesh([('x', 2), ('y', 1)])
   def testAutodiffCache(self):
-    f = pjit(
-        lambda x: jnp.sin(x).sum(), in_shardings=P('x'), out_shardings=None
-    )
+    f = pjit(lambda x: jnp.sin(x).sum(), in_shardings=P('x'), out_shardings=None)
     x = jnp.arange(16, dtype=jnp.float32)
-    jax.grad(f)(x)  # Warm up the cache.
-    before = pjit_lib._pjit_lower_cached.cache_info()
-    jax.grad(f)(x)
-    after = pjit_lib._pjit_lower_cached.cache_info()
 
-    # One hit for the forward pass, one hit for backward.
-    self.assertEqual(after.hits, before.hits + 2)
-    self.assertEqual(after.misses, before.misses)
+    jax.grad(f)(x)  # Warm up the cache.
+    with jtu.count_pjit_cpp_cache_miss() as count:
+      jax.grad(f)(x)
+    if xla_extension_version >= 283:
+      self.assertEqual(count[0], 0)  # no cache miss i.e. cache hit
+    else:
+      self.assertEqual(count[0], 2)
 
   @jtu.with_mesh([('x', 2), ('y', 1)])
   def testEvalJaxpr(self):
@@ -849,6 +865,9 @@ class PJitTest(jtu.BufferDonationTestCase):
   def testOutfeed(self):
     if xla_bridge.using_pjrt_c_api():
       raise unittest.SkipTest('outfeed not implemented in PJRT C API')
+    if config.use_shardy_partitioner.value:
+      self.skipTest(
+          'b/355263220: outfeed lowering not supported by Shardy')
 
     devices = np.array(jax.local_devices())
     nr_devices = len(devices)
@@ -1282,6 +1301,9 @@ class CustomPartitionerTest(jtu.JaxTestCase):
   def skip_if_custom_partitioning_not_supported(self):
     if jtu.is_cloud_tpu():
       raise unittest.SkipTest("Custom partitioning is not supported on libtpu.")
+    if config.use_shardy_partitioner.value:
+      self.skipTest(
+          'Custom partitioning is not supported with Shardy yet.')
 
   @jtu.skip_on_devices('cpu')  # Collectives don't seem to work on CPU.
   @jtu.with_mesh([('x', 4), ('y', 2)])
@@ -1566,6 +1588,8 @@ class AutoShardingPjitTest(jtu.JaxTestCase):
   )
   def test_pjit_arr_auto_sharding_array(self, mesh_shape, global_input_shape,
                                         mesh_axis_names):
+    if config.use_shardy_partitioner.value:
+      self.skipTest('Must register auto partitioner for Shardy')
     global_mesh = jtu.create_global_mesh(mesh_shape, mesh_axis_names)
     input_data = np.arange(
         math.prod(global_input_shape), dtype=np.float32).reshape(global_input_shape)
@@ -1582,6 +1606,8 @@ class AutoShardingPjitTest(jtu.JaxTestCase):
     self.assertArraysEqual(out._value, input_data)
 
   def test_xla_arr_sharding_mismatch(self):
+    if config.use_shardy_partitioner.value:
+      self.skipTest('Must register auto partitioner for Shardy')
     global_mesh = jtu.create_global_mesh((2, 2), ('x', 'y'))
     global_input_shape = (6, 2)
     input_data = np.arange(
@@ -1609,6 +1635,8 @@ class AutoShardingPjitTest(jtu.JaxTestCase):
         compiled(arr)
 
   def test_gda_auto_shardings_len(self):
+    if config.use_shardy_partitioner.value:
+      self.skipTest('Must register auto partitioner for Shardy')
     global_mesh = jtu.create_global_mesh((2, 2), ('x', 'y'))
     global_input_shape = (4, 2)
     input_data = np.arange(
@@ -1629,6 +1657,8 @@ class AutoShardingPjitTest(jtu.JaxTestCase):
   )
   def test_jit_arr_partial_auto_sharding_array(
       self, mesh_shape, mesh_axis_names, pspec):
+    if config.use_shardy_partitioner.value:
+      self.skipTest('Must register auto partitioner for Shardy')
     mesh = jtu.create_global_mesh(mesh_shape, mesh_axis_names)
     global_input_shape = (8, 4)
     input_data = np.arange(
@@ -1669,6 +1699,8 @@ class AutoShardingPjitTest(jtu.JaxTestCase):
       self, mesh_shape, mesh_axis_names):
     if not jtu.test_device_matches(["tpu"]):
       self.skipTest('Parameters are tupled only on TPU if >2000 parameters')
+    if config.use_shardy_partitioner.value:
+      self.skipTest('Must register auto partitioner for Shardy')
 
     mesh = jtu.create_global_mesh(mesh_shape, mesh_axis_names)
     global_input_shape = (8, 4)
@@ -1840,6 +1872,11 @@ class ArrayPjitTest(jtu.JaxTestCase):
   )
   def test_pjit_array_multi_input_multi_output(self, mesh_shape, s1_shape,
                                                s2_shape, s3_shape, s4_shape):
+    if config.use_shardy_partitioner.value:
+      self.skipTest(
+          'TODO(b/355263220) Shardy conflict resolution is not complete. Issue '
+          'here is that for `a1 @ a1.T` GSPMD gives dim 0 sharded on `x` while '
+          'Shardy gives it fully replicated.')
     global_mesh = jtu.create_global_mesh(mesh_shape, ('x', 'y'))
     global_input_shape = (8, 2)
 
@@ -2401,6 +2438,10 @@ class ArrayPjitTest(jtu.JaxTestCase):
     a = jax.device_put(x, out_p.sharding)
     self.assertTrue(jax.dtypes.issubdtype(a.dtype, jax.dtypes.prng_key))
     self.assertEqual(a.sharding, out_p.sharding)
+
+    if config.use_shardy_partitioner.value:
+      # OpSharding is not supported in shardy.
+      return
 
     op = xc.OpSharding()
     op.type = xc.OpSharding.Type.OTHER
@@ -3407,6 +3448,8 @@ class ArrayPjitTest(jtu.JaxTestCase):
     jtu.check_grads(g, (arr,), order=2)
 
   def test_pjit_out_sharding_preserved(self):
+    if config.use_shardy_partitioner.value:
+      raise unittest.SkipTest("Shardy doesn't support PositionalSharding")
     mesh = jtu.create_global_mesh((2, 1), ('x', 'y'))
     ns = NamedSharding(mesh, P('x'))
     ps = PositionalSharding(jax.devices()[:2]).reshape(2, 1)
@@ -3485,6 +3528,8 @@ class ArrayPjitTest(jtu.JaxTestCase):
     self.assertEqual(out.sharding, NamedSharding(mesh, P('x')))
 
   def test_sharding_preserved_trivial(self):
+    if config.use_shardy_partitioner.value:
+      raise unittest.SkipTest("Shardy doesn't support PositionalSharding")
     mesh = jtu.create_global_mesh((2, 1), ('x', 'y'))
     ns = NamedSharding(mesh, P('x'))
     ps = PositionalSharding(jax.devices()[:2]).reshape(2, 1)
@@ -3537,6 +3582,8 @@ class ArrayPjitTest(jtu.JaxTestCase):
     self.assertEqual(count[0], 1)
 
   def test_jit_mul_sum_sharding_preserved(self):
+    if config.use_shardy_partitioner.value:
+      raise unittest.SkipTest("Shardy doesn't support PositionalSharding")
     mesh = jtu.create_global_mesh((2, 1), ('x', 'y'))
     ns = NamedSharding(mesh, P('x'))
     ps = PositionalSharding(jax.devices()[:2]).reshape(2, 1)
@@ -3610,6 +3657,8 @@ class ArrayPjitTest(jtu.JaxTestCase):
     self.assertEqual(out2.sharding.spec, P())
 
   def test_sharding_preserved_apply_primitive(self):
+    if config.use_shardy_partitioner.value:
+      raise unittest.SkipTest("Shardy doesn't support PositionalSharding")
     mesh = jtu.create_global_mesh((2, 1), ('x', 'y'))
     ns = NamedSharding(mesh, P('x'))
 
@@ -3850,6 +3899,9 @@ class ArrayPjitTest(jtu.JaxTestCase):
       f()  # doesn't crash
 
   def test_lowering_cache_hit_different_devices(self):
+    if config.use_shardy_partitioner.value:
+      self.skipTest('b/358322664: different axis names results in '
+                    'a cache miss with Shardy.')
     if jax.device_count() < 4:
       self.skipTest('Requires >=4 devices')
 
@@ -3947,7 +3999,10 @@ class ArrayPjitTest(jtu.JaxTestCase):
     self.assertEqual(base_array.sharding, NamedSharding(mesh, P('y', 'x', None)))
 
     lowered_text = make_keys.lower(seeds).as_text()
-    self.assertIn('unspecified_dims=[0,1]', lowered_text)
+    if config.use_shardy_partitioner.value:
+      self.assertIn('<@mesh, [{?}, {?}, {}]>', lowered_text)
+    else:
+      self.assertIn('unspecified_dims=[0,1]', lowered_text)
 
   def test_prng_sharding_propagation_with_nested_jit(self):
     input_shape = (8, 2)
@@ -3973,7 +4028,10 @@ class ArrayPjitTest(jtu.JaxTestCase):
     self.assertEqual(base_array.sharding, NamedSharding(mesh, P(None, 'y', None)))
 
     lowered_text = make_keys.lower(seeds).as_text()
-    self.assertIn('unspecified_dims=[0,1]', lowered_text)
+    if config.use_shardy_partitioner.value:
+      self.assertIn('<@mesh, [{?}, {?}, {}]>', lowered_text)
+    else:
+      self.assertIn('unspecified_dims=[0,1]', lowered_text)
 
   def test_partial_sharded_prng_key_inp(self):
     input_shape = (8, 2, 2)
@@ -3997,7 +4055,10 @@ class ArrayPjitTest(jtu.JaxTestCase):
     self.assertEqual(base_array.sharding, NamedSharding(mesh, P(None, 'y', 'x')))
 
     lowered_text = make_keys.lower(seeds).as_text()
-    self.assertIn('unspecified_dims=[0,1,2]', lowered_text)
+    if config.use_shardy_partitioner.value:
+      self.assertIn('<@mesh, [{?}, {?}, {?}, {}]>', lowered_text)
+    else:
+      self.assertIn('unspecified_dims=[0,1,2]', lowered_text)
 
   def test_jit_partially_specified_shardings(self):
 
@@ -4050,6 +4111,8 @@ class ArrayPjitTest(jtu.JaxTestCase):
     f(inps)  # doesn't crash
 
   def test_spmd_preserves_input_sharding_vmap_grad(self):
+    if config.use_shardy_partitioner.value:
+      self.skipTest("Shardy doesn't support PositionalSharding")
     # https://github.com/google/jax/issues/20710
     n_devices = jax.device_count()
     sharding = PositionalSharding(jax.devices())
@@ -4213,6 +4276,9 @@ class ArrayPjitTest(jtu.JaxTestCase):
     self.assertArraysEqual(out2, np.arange(8) * 2)
 
   def test_device_put_efficient_reshard_single_host(self):
+    if config.use_shardy_partitioner.value:
+      self.skipTest(
+          '_different_device_order_reshard is creating a GSPMDSharding')
     if jax.device_count() < 4:
       self.skipTest('Requires >= 4 devices')
 
@@ -4237,6 +4303,9 @@ class ArrayPjitTest(jtu.JaxTestCase):
       ("8_384", (8, 384)),
   )
   def test_device_put_efficient_reshard_complex_mesh(self, shape):
+    if config.use_shardy_partitioner.value:
+      self.skipTest(
+          '_different_device_order_reshard is creating a GSPMDSharding')
     if jax.device_count() < 8:
       self.skipTest('Requires >= 8 devices')
 
@@ -4466,6 +4535,20 @@ class ArrayPjitTest(jtu.JaxTestCase):
         'Mesh shape of the input.*does not'
         ' match the mesh shape of the target sharding.*'):
       with_sharding_constraint(arr, NamedSharding(abs_mesh2, P('y')))
+
+  @unittest.skipIf(xla_extension_version < 283,
+                   "Requires xla_extension_version >= 283")
+  def test_global_jit_cpp_cache_hit_out_shardings(self):
+    mesh = jtu.create_global_mesh((2,), 'x')
+    s = NamedSharding(mesh, P('x'))
+
+    def f(x):
+      return x * 2
+
+    with jtu.count_pjit_cpp_cache_miss() as count:
+      jax.jit(f, out_shardings=s)(np.arange(8))
+      jax.jit(f, out_shardings=s)(np.arange(8))
+    self.assertEqual(count[0], 1)
 
 
 def spec_regex(s):
@@ -5116,6 +5199,24 @@ class UtilTest(jtu.JaxTestCase):
     mesh = jax.sharding.Mesh(jax.devices(), 'dp')
     self.assertTupleEqual(mesh.axis_names, ('dp',))
 
+  def test_sharded_in_place_assignment(self):
+    mesh = jtu.create_global_mesh((8,), ('data',))
+
+    idx = [0,  2,  5,  7,  8, 10, 13, 15]
+    n = 16
+    def _init():
+      w = jnp.zeros((n, n))
+      idx1 = jnp.array(idx)
+      w = w.at[idx1, jnp.arange(n//2)].set(1)
+      return w
+
+    w = jax.jit(_init, out_shardings=NamedSharding(mesh, P(None, 'data')))()
+
+    w_gt = np.zeros((n, n))
+    for j, i in enumerate(idx):
+      w_gt[i, j] = 1
+
+    self.assertArraysEqual(w, w_gt)
 
 @jtu.with_config(jax_use_shardy_partitioner=True)
 class SdyIntegrationTest(jtu.JaxTestCase):

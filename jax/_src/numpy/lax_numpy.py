@@ -349,14 +349,103 @@ def load(*args: Any, **kwargs: Any) -> Array:
 
 ### implementations of numpy functions in terms of lax
 
-@util.implements(np.fmin, module='numpy')
 @jit
 def fmin(x1: ArrayLike, x2: ArrayLike) -> Array:
+  """Return element-wise minimum of the input arrays.
+
+  JAX implemtentation of :func:`numpy.fmin`.
+
+  Args:
+    x1: input array or scalar.
+    x2: input array or scalar. x1 and x2 must either have same shape or be
+      broadcast compatible.
+
+  Returns:
+    An array containing the element-wise minimum of x1 and x2.
+
+  Note:
+    For each pair of elements, ``jnp.fmin`` returns:
+      - the smaller of the two if both elements are finite numbers.
+      - finite number if one element is ``nan``.
+      - ``-inf`` if one element is ``-inf`` and the other is finite or ``nan``.
+      - ``inf`` if one element is ``inf`` and the other is ``nan``.
+      - ``nan`` if both elements are ``nan``.
+
+  Examples:
+    >>> jnp.fmin(2, 3)
+    Array(2, dtype=int32, weak_type=True)
+    >>> jnp.fmin(2, jnp.array([1, 4, 2, -1]))
+    Array([ 1,  2,  2, -1], dtype=int32)
+
+    >>> x1 = jnp.array([1, 3, 2])
+    >>> x2 = jnp.array([2, 1, 4])
+    >>> jnp.fmin(x1, x2)
+    Array([1, 1, 2], dtype=int32)
+
+    >>> x3 = jnp.array([1, 5, 3])
+    >>> x4 = jnp.array([[2, 3, 1],
+    ...                 [5, 6, 7]])
+    >>> jnp.fmin(x3, x4)
+    Array([[1, 3, 1],
+           [1, 5, 3]], dtype=int32)
+
+    >>> nan = jnp.nan
+    >>> x5 = jnp.array([jnp.inf, 5, nan])
+    >>> x6 = jnp.array([[2, 3, nan],
+    ...                 [nan, 6, 7]])
+    >>> jnp.fmin(x5, x6)
+    Array([[ 2.,  3., nan],
+           [inf,  5.,  7.]], dtype=float32)
+  """
   return where(ufuncs.less(x1, x2) | ufuncs.isnan(x2), x1, x2)
 
-@util.implements(np.fmax, module='numpy')
+
 @jit
 def fmax(x1: ArrayLike, x2: ArrayLike) -> Array:
+  """Return element-wise maximum of the input arrays.
+
+  JAX implementation of :func:`numpy.fmax`.
+
+  Args:
+    x1: input array or scalar
+    x2: input array or scalar. x1 and x1 must either have same shape or be
+      broadcast compatible.
+
+  Returns:
+    An array containing the element-wise maximum of x1 and x2.
+
+  Note:
+    For each pair of elements, ``jnp.fmax`` returns:
+      - the larger of the two if both elements are finite numbers.
+      - finite number if one element is ``nan``.
+      - ``nan`` if both elements are ``nan``.
+      - ``inf`` if one element is ``inf`` and the other is finite or ``nan``.
+      - ``-inf`` if one element is ``-inf`` and the other is ``nan``.
+
+  Examples:
+    >>> jnp.fmax(3, 7)
+    Array(7, dtype=int32, weak_type=True)
+    >>> jnp.fmax(5, jnp.array([1, 7, 9, 4]))
+    Array([5, 7, 9, 5], dtype=int32)
+
+    >>> x1 = jnp.array([1, 3, 7, 8])
+    >>> x2 = jnp.array([-1, 4, 6, 9])
+    >>> jnp.fmax(x1, x2)
+    Array([1, 4, 7, 9], dtype=int32)
+
+    >>> x3 = jnp.array([[2, 3, 5, 10],
+    ...                 [11, 9, 7, 5]])
+    >>> jnp.fmax(x1, x3)
+    Array([[ 2,  3,  7, 10],
+           [11,  9,  7,  8]], dtype=int32)
+
+    >>> x4 = jnp.array([jnp.inf, 6, -jnp.inf, nan])
+    >>> x5 = jnp.array([[3, 5, 7, nan],
+    ...                 [nan, 9, nan, -1]])
+    >>> jnp.fmax(x4, x5)
+    Array([[ inf,   6.,   7.,  nan],
+           [ inf,   9., -inf,  -1.]], dtype=float32)
+  """
   return where(ufuncs.greater(x1, x2) | ufuncs.isnan(x2), x1, x2)
 
 @util.implements(np.issubdtype)
@@ -1299,6 +1388,8 @@ def reshape(
       JAX does not support ``order="A"``.
     copy: unused by JAX; JAX always returns a copy, though under JIT the compiler
       may optimize such copies away.
+    newshape: deprecated alias of the ``shape`` argument. Will result in a
+      :class:`DeprecationWarning` if used.
 
   Returns:
     reshaped copy of input array with the specified shape.
@@ -1363,11 +1454,10 @@ def reshape(
         "jnp.reshape received both `shape` and `newshape` arguments. Note that "
         "using `newshape` is deprecated, please only use `shape` instead."
       )
-    warnings.warn(
-      "The newshape argument of jax.numpy.reshape is deprecated and setting it "
-      "will soon raise an error. To avoid an error in the future, and to "
-      "suppress this warning, please use the shape argument instead.",
-      DeprecationWarning, stacklevel=2)
+    deprecations.warn(
+      "jax-numpy-reshape-newshape",
+      ("The newshape argument of jax.numpy.reshape is deprecated. "
+       "Please use the shape argument instead."), stacklevel=2)
     shape = newshape
     del newshape
   elif shape is None:
@@ -2413,10 +2503,10 @@ def clip(
   min = a_min if not isinstance(a_min, DeprecatedArg) else min
   max = a_max if not isinstance(a_max, DeprecatedArg) else max
   if any(not isinstance(t, DeprecatedArg) for t in (a, a_min, a_max)):
-    warnings.warn(
-      "Passing arguments 'a', 'a_min' or 'a_max' to jax.numpy.clip is "
-      "deprecated. Please use 'arr', 'min' or 'max' respectively instead.",
-      DeprecationWarning,
+    deprecations.warn(
+      "jax-numpy-clip-args",
+      ("Passing arguments 'a', 'a_min' or 'a_max' to jax.numpy.clip is "
+       "deprecated. Please use 'arr', 'min' or 'max' respectively instead."),
       stacklevel=2,
     )
 
@@ -3390,8 +3480,6 @@ available in the JAX FAQ at :ref:`faq-data-placement` (full FAQ at
 https://jax.readthedocs.io/en/latest/faq.html).
 """
 
-deprecations.register("jax-numpy-array-none")
-
 
 def array(object: Any, dtype: DTypeLike | None = None, copy: bool = True,
           order: str | None = "K", ndmin: int = 0,
@@ -3581,8 +3669,6 @@ def _convert_to_array_if_dtype_fails(x: ArrayLike) -> ArrayLike:
     return x
 
 
-deprecations.register("jax-numpy-astype-complex-to-real")
-
 def astype(x: ArrayLike, dtype: DTypeLike | None,
            /, *, copy: bool = False,
            device: xc.Device | Sharding | None = None) -> Array:
@@ -3729,8 +3815,50 @@ def asarray(a: Any, dtype: DTypeLike | None = None, order: str | None = None,
   return array(a, dtype=dtype, copy=bool(copy), order=order, device=device)
 
 
-@util.implements(np.copy, lax_description=_ARRAY_DOC)
 def copy(a: ArrayLike, order: str | None = None) -> Array:
+  """Return a copy of the array.
+
+  JAX implementation of :func:`numpy.copy`.
+
+  Args:
+    a: arraylike object to copy
+    order: not implemented in JAX
+
+  Returns:
+    a copy of the input array ``a``.
+
+  See Also:
+    - :func:`jax.numpy.array`: create an array with or without a copy.
+    - :meth:`jax.Array.copy`: same function accessed as an array method.
+
+  Examples:
+    Since JAX arrays are immutable, in most cases explicit array copies
+    are not necessary. One exception is when using a function with donated
+    arguments (see the ``donate_argnums`` argument to :func:`jax.jit`).
+
+    >>> f = jax.jit(lambda x: 2 * x, donate_argnums=0)
+    >>> x = jnp.arange(4)
+    >>> y = f(x)
+    >>> print(y)
+    [0 2 4 6]
+
+    Because we marked ``x`` as being donated, the original array is no longer
+    available:
+
+    >>> print(x)  # doctest: +IGNORE_EXCEPTION_DETAIL
+    Traceback (most recent call last):
+    RuntimeError: Array has been deleted with shape=int32[4].
+
+    In situations like this, an explicit copy will let you keep access to the
+    original buffer:
+
+    >>> x = jnp.arange(4)
+    >>> y = f(x.copy())
+    >>> print(y)
+    [0 2 4 6]
+    >>> print(x)
+    [0 1 2 3]
+  """
   util.check_arraylike("copy", a)
   return array(a, copy=True, order=order)
 
@@ -7676,9 +7804,45 @@ def _roll_static(a: Array, shift: Sequence[int], axis: Sequence[int]) -> Array:
                         dimension=ax)
   return a
 
-@util.implements(np.roll)
 def roll(a: ArrayLike, shift: ArrayLike | Sequence[int],
          axis: int | Sequence[int] | None = None) -> Array:
+  """Roll the elements of an array along a specified axis.
+
+  JAX implementation of :func:`numpy.roll`.
+
+  Args:
+    a: input array.
+    shift: the number of positions to shift the specified axis. If an integer,
+      all axes are shifted by the same amount. If a tuple, the shift for each
+      axis is specified individually.
+    axis: the axis or axes to roll. If ``None``, the array is flattened, shifted,
+      and then reshaped to its original shape.
+
+  Returns:
+    A copy of ``a`` with elements rolled along the specified axis or axes.
+
+  See also:
+    - :func:`jax.numpy.rollaxis`: roll the specified axis to a given position.
+
+  Examples:
+    >>> a = jnp.array([0, 1, 2, 3, 4, 5])
+    >>> jnp.roll(a, 2)
+    Array([4, 5, 0, 1, 2, 3], dtype=int32)
+
+    Roll elements along a specific axis:
+
+    >>> a = jnp.array([[ 0,  1,  2,  3],
+    ...                [ 4,  5,  6,  7],
+    ...                [ 8,  9, 10, 11]])
+    >>> jnp.roll(a, 1, axis=0)
+    Array([[ 8,  9, 10, 11],
+           [ 0,  1,  2,  3],
+           [ 4,  5,  6,  7]], dtype=int32)
+    >>> jnp.roll(a, [2, 3], axis=[0, 1])
+    Array([[ 5,  6,  7,  4],
+           [ 9, 10, 11,  8],
+           [ 1,  2,  3,  0]], dtype=int32)
+  """
   util.check_arraylike("roll", a)
   arr = asarray(a)
   if axis is None:
