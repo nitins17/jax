@@ -78,12 +78,12 @@ def get_bazelrc_config(os_name: str, arch: str, artifact: str, mode:str, use_rbe
   if (mode == "release" or use_rbe) and (os_name == "linux" or os_name == "windows") and arch == "x86_64":
     bazelrc_config = "rbe_" + bazelrc_config
   elif mode == "local":
+    if use_rbe:
+      logger.warning("RBE is not supported on %s_%s. Using Local config instead.", os_name, arch)
     if os_name == "linux" and arch == "aarch64" and artifact == "jaxlib":
       logger.info("Linux Aarch64 CPU builds do not have custom local config in JAX's root .bazelrc. Running with default configs.")
       bazelrc_config = ""
       return bazelrc_config
-    if use_rbe:
-      logger.warning("RBE is not supported on %s_%s. Using Local config instead.", os_name, arch)
     bazelrc_config = "local_" + bazelrc_config
   else:
     bazelrc_config = "ci_" + bazelrc_config
