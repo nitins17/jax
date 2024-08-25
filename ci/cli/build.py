@@ -52,7 +52,6 @@ def add_system_argument(parser: argparse.ArgumentParser):
 
 def add_cuda_argument(parser: argparse.ArgumentParser):
   """Add CUDA version argument to the parser."""
-  # TODO: should probably make this naming agnostic to allow for amd or intel
   parser.add_argument(
       "--cuda_version",
       type=str,
@@ -71,22 +70,22 @@ def add_cudnn_argument(parser: argparse.ArgumentParser):
 
 def get_bazelrc_config(os_name: str, arch: str, artifact: str, mode:str, use_rbe: bool):
   """Returns the bazelrc config for the given architecture, OS, and build type."""
-  bazelrc_config="{}_{}".format(os_name, arch)
+  bazelrc_config = f"{os_name}_{arch}"
 
-  if mode == "local":
-    # RBE is only supported on Linux x86 and Windows
-    if use_rbe and (os_name == "linux" or os_name == "windows") and arch == "x86_64":
-      bazelrc_config = "rbe_" + bazelrc_config
-    else:
-      if use_rbe:
-        logger.warning("RBE is not supported on %s_%s. Using Local config instead.", os_name, arch)
-      bazelrc_config = "local_" + bazelrc_config
+  # RBE is only supported on Linux x86 and Windows. CI builds use RBE by default.
+  if (mode == "release" or use_rbe) and (os_name == "linux" or os_name == "windows") and arch == "x86_64":
+    bazelrc_config = "rbe_" + bazelrc_config
+  elif mode == "local":
+    if os_name == "linux" and arch == "aarch64" and artifact == "jaxlib":
+      logger.info("Linux Aarch64 CPU builds do not have custom local config. Running Bazel as is.")
+      bazelrc_config = ""
+      return bazelrc_config
+    if use_rbe:
+      logger.warning("RBE is not supported on %s_%s. Using Local config instead.", os_name, arch)
+    bazelrc_config = "local_" + bazelrc_config
   else:
     # RBE is only supported on Linux x86 and Windows
-    if (os_name == "linux" or os_name == "windows") and arch == "x86_64":
-      bazelrc_config = "rbe_" + bazelrc_config
-    else:
-      bazelrc_config = "ci_" + bazelrc_config
+    bazelrc_config = "ci_" + bazelrc_config
 
   if artifact == "jax-cuda-plugin" or artifact == "jax-cuda-pjrt":
     bazelrc_config = bazelrc_config + "_cuda"
@@ -195,11 +194,13 @@ async def main():
   plugin_parser = subparsers.add_parser("jax-cuda-plugin", help="Builds the jax-cuda-plugin package.")
   add_python_argument(plugin_parser)
   add_cuda_argument(plugin_parser)
+  add_cudnn_argument(plugin_parser)
   add_system_argument(plugin_parser)
 
   # jax-cuda-pjrt subcommand
   pjrt_parser = subparsers.add_parser("jax-cuda-pjrt", help="Builds the jax-cuda-pjrt package.")
   add_cuda_argument(pjrt_parser)
+  add_cudnn_argument(pjrt_parser)
   add_system_argument(pjrt_parser)
 
   # Get the host systems architecture
@@ -217,23 +218,20 @@ async def main():
   for key, value in vars(global_args).items():
     setattr(args, key, value)
 
-  if args.command == "jax":
-    logger.info("Building jax...")
-  elif args.command == "jaxlib":
-    logger.info(
-        "Building jaxlib with python version %s for system %s",
-        args.python_version,
-        args.target_system,
-    )
-  elif args.command == "jax-cuda-plugin":
-    logger.info("Building plugin...")
-  elif args.command == "jax-cuda-pjrt":
-    logger.info("Building pjrt...")
-  else:
-    logger.info("Invalid command")
-    # print help and exit
-    parser.print_help()
-    sys.exit(1)
+  logger.info(
+      "Building %s for %s %s...",
+      args.command,
+      os_name,
+      arch,
+  )
+
+  # Only jaxlib and jax-cuda-plugin are built for a specific python version
+  if args.command == "jaxlib" or args.command == "jax-cuda-plugin":
+    logger.info("Using Python version %s", args.python_version)
+
+  if args.command == "jax-cuda-plugin" or args.command == "jax-cuda-pjrt":
+    logger.info("Using CUDA version %s", args.cuda_version)
+    logger.info("Using cuDNN version %s", args.cudnn_version)
 
   # Find the path to Bazel
   bazel_path = tools.get_bazel_path(args.bazel_path)

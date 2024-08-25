@@ -197,6 +197,7 @@ build:local_linux_x86_64_cuda --config=local_cuda_base
 # No custom config for Linux Aarch64. If building for CPU, run
 # `bazel build|test //path/to:target`. If building for CUDA, run
 # `bazel build|test --config=local_cuda_base //path/to:target`.
+build:local_linux_aarch64_cuda --config=local_cuda_base
 
 # Mac x86 Local configs
 # For Mac x86, we target compatibility with macOS 10.14.
@@ -211,8 +212,7 @@ build:local_darwin_arm64 --macos_minimum_os=12.0
 build:local_darwin_arm64 --config=macos_cache_push
 
 # Windows x86 Local configs
-# Requires MSVC and LLVM to be installed
-build:local_windows_x86_64 --config=win_clang
+build:local_windows_x86_64 --config=avx_windows
 
 # #############################################################################
 # CI Build config options below. # JAX uses these configs in CI builds for
@@ -276,8 +276,8 @@ build:ci_darwin_arm64 --config=local_darwin_arm64
 build:ci_darwin_arm64 --config=macos_cache_push
 
 # Windows x86 CI configs
+build:ci_windows_x86_64 --config=local_windows_x86_64
 build:ci_windows_x86_64 --config=clang
-build:ci_windows_x86_64 --config=avx_windows
 # Set the toolchains
 build:ci_windows_x86_64 --crosstool_top="@xla//tools/toolchains/win/20240424:toolchain"
 build:ci_windows_x86_64 --extra_toolchains="@xla//tools/toolchains/win/20240424:cc-toolchain-x64_windows-clang-cl"
