@@ -86,6 +86,8 @@ def get_bazelrc_config(os_name: str, arch: str, artifact: str, mode:str, use_rbe
       return bazelrc_config
     bazelrc_config = "local_" + bazelrc_config
   else:
+    if use_rbe:
+      logger.warning("RBE is not supported on %s_%s. Using CI config instead.", os_name, arch)
     bazelrc_config = "ci_" + bazelrc_config
 
   if artifact == "jax-cuda-plugin" or artifact == "jax-cuda-pjrt":
