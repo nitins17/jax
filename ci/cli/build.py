@@ -249,9 +249,9 @@ async def main():
       # Find the path to Clang
     clang_path = tools.get_clang_path(args.clang_path)
     if clang_path:
-      bazel_command.append("--action_env CLANG_COMPILER_PATH='{}'".format(clang_path))
-      bazel_command.append("--repo_env CC='{}'".format(clang_path))
-      bazel_command.append("--repo_env BAZEL_COMPILER='{}'".format(clang_path))
+      bazel_command.append(f"--action_env CLANG_COMPILER_PATH='{clang_path}'")
+      bazel_command.append(f"--repo_env CC='{clang_path}'")
+      bazel_command.append(f"--repo_env BAZEL_COMPILER='{clang_path}'")
       bazel_command.append("--config=clang")
 
   # JAX's .bazelrc has custom configs for each build type, architecture, and
@@ -260,12 +260,10 @@ async def main():
   # in JAX's .bazelrc. In this case, we build with the default configs.
   bazelrc_config = get_bazelrc_config(os_name, arch, args.command, args.mode, args.use_rbe)
   if bazelrc_config:
-    bazel_command.append("--config=%s", bazelrc_config)
+    bazel_command.append(f"--config={bazelrc_config}")
 
   if hasattr(args, "python_version"):
-    bazel_command.append(
-        "--repo_env=HERMETIC_PYTHON_VERSION={}".format(args.python_version)
-    )
+    bazel_command.append(f"--repo_env=HERMETIC_PYTHON_VERSION={args.python_version}")
 
   build_target, wheel_binary = ARTIFACT_BUILD_TARGET_DICT[args.command]
   bazel_command.append(build_target)
@@ -285,17 +283,17 @@ async def main():
     # Read output directory from environment variable. If not set, set it to
     # dist/ in the current working directory.
     output_dir = os.getenv("JAXCI_OUTPUT_DIR", os.path.join(os.getcwd(), "dist"))
-    run_wheel_binary.append("--output_path={}".format(output_dir))
+    run_wheel_binary.append(f"--output_path={output_dir}")
 
-    run_wheel_binary.append("--cpu={}".format(arch))
+    run_wheel_binary.append(f"--cpu={arch}")
 
     if args.command == "jax-cuda-plugin" or args.command == "jax-cuda-pjrt":
       run_wheel_binary.append("--enable-cuda=True")
       major_cuda_version = args.cuda_version.split(".")[0]
-      run_wheel_binary.append("--platform_version={}".format(major_cuda_version))
+      run_wheel_binary.append(f"--platform_version={major_cuda_version}")
 
     jaxlib_git_hash = get_jaxlib_git_hash()
-    run_wheel_binary.append("--jaxlib_git_hash={}".format(jaxlib_git_hash))
+    run_wheel_binary.append(f"--jaxlib_git_hash={jaxlib_git_hash}")
 
     logger.info("%s\n", run_wheel_binary.command)
     await executor.run(run_wheel_binary.command)
