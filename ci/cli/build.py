@@ -73,12 +73,13 @@ def get_bazelrc_config(os_name: str, arch: str, artifact: str, mode:str, use_rbe
   bazelrc_config = f"{os_name}_{arch}"
 
   # When the CLI is run by invoking ci/build_artifacts.sh, the CLI runs in CI
-  # mode and will use one of the "ci_" configs in the .bazelrc depending on the
-  # build type. We want to run certain CI builds with RBE and we also want to
-  # allow users the flexibility to build JAX artifacts either by running the CLI
-  # or by running ci/build_artifacts.sh. Because RBE requires permissions, we
-  # cannot enable RBE by default in the ci/build_artifacts.sh script. Instead,
-  # CI builds set JAXCI_USE_RBE to 1 to enable RBE.
+  # mode by default and will use one of the "ci_" configs in the .bazelrc. We
+  # want to run certain CI builds with RBE and we also want to allow users the
+  # flexibility to build JAX artifacts either by running the CLI or by running
+  # ci/build_artifacts.sh. Because RBE requires permissions, we cannot enable it
+  # by default in ci/build_artifacts.sh. Instead, we do not set `--use_rbe` in
+  # build_artifacts.sh and have the CI builds set JAXCI_USE_RBE to 1 to enable
+  # RBE.
   if os.environ.get("JAXCI_USE_RBE", "0") == "1":
     use_rbe = True
 
@@ -100,7 +101,7 @@ def get_bazelrc_config(os_name: str, arch: str, artifact: str, mode:str, use_rbe
     if use_rbe:
       logger.warning("RBE is not supported on %s_%s. Using CI config instead.", os_name, arch)
     elif (os_name == "linux" or os_name == "windows") and arch == "x86_64":
-      logger.info("RBE support is available for this platform. If you want to use RBE, run the CLI with `--use_rbe` or set `JAXCI_USE_RBE=1`")
+      logger.info("RBE support is available for this platform. If you want to use RBE and have the required permissions, run the CLI with `--use_rbe` or set `JAXCI_USE_RBE=1`")
     bazelrc_config = "ci_" + bazelrc_config
 
   if artifact == "jax-cuda-plugin" or artifact == "jax-cuda-pjrt":
