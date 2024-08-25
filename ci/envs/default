@@ -34,5 +34,10 @@ export JAXCI_PYTHON=""
 # Release tag to use for the build.
 export JAXCI_RELEASE_TAG=""
 
-# Temporary; for local testing.
+# The build CLI can be run in either "ci" or "local" mode. This is used to
+# determine which flags to pass to the CLI. If the variable is not set, we will
+# default to CI mode.
+export JAXCI_CLI_BUILD_MODE={JAXCI_CLI_BUILD_MODE:ci}
+
+# This is expected to be the root of the JAX git repository.
 export JAXCI_GIT_DIR=$(pwd)

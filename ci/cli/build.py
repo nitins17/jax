@@ -108,15 +108,15 @@ async def main():
   parser.add_argument(
       "--mode",
       type=str,
-      choices=["release", "local"],
+      choices=["ci", "local"],
       default="local",
       help=
         """
-        Flags as requesting a release or release like build.  Setting this flag
-        will assume multiple settings expected in release and CI builds. These
-        are set by the release options in .bazelrc. To see best how this flag
-        resolves you can run the artifact of choice with "--release -dry-run" to
-        get the commands issued to Bazel for that artifact.
+        Flags as requesting a CI or CI like build.  Setting this flag to CI
+        will assume multiple settings expected in CI builds. These are set by
+        the CI options in .bazelrc. To see best how this flag resolves you can
+        run the artifact of choice with "--mode=[ci|local] --dry-run" to get the
+        commands issued to Bazel for that artifact.
         """,
   )
 
@@ -253,6 +253,9 @@ async def main():
       bazel_command.append(f"--repo_env CC='{clang_path}'")
       bazel_command.append(f"--repo_env BAZEL_COMPILER='{clang_path}'")
       bazel_command.append("--config=clang")
+
+  if args.mode == "ci":
+    logging.info("Running in CI mode. Run the CLI with --help for more details on what this means.")
 
   # JAX's .bazelrc has custom configs for each build type, architecture, and
   # OS. Fetch the appropriate config and pass it to Bazel. A special case is

@@ -22,17 +22,17 @@ fi
 
 # Build the jaxlib CPU artifact
 if [[ "$JAXCI_BUILD_JAXLIB_ENABLE" == 1 ]]; then
-  jaxrun python3 ci/cli/build.py jaxlib --python_version=$JAXCI_HERMETIC_PYTHON_VERSION
+  jaxrun python3 ci/cli/build.py jaxlib --mode=JAXCI_CLI_BUILD_MODE --python_version=$JAXCI_HERMETIC_PYTHON_VERSION
 fi
 
 # Build the jax-cuda-plugin artifact
 if [[ "$JAXCI_BUILD_PLUGIN_ENABLE" == 1 ]]; then
-  jaxrun python3 ci/cli/build.py jax-cuda-plugin --python_version=$JAXCI_HERMETIC_PYTHON_VERSION
+  jaxrun python3 ci/cli/build.py jax-cuda-plugin --mode=JAXCI_CLI_BUILD_MODE --python_version=$JAXCI_HERMETIC_PYTHON_VERSION
 fi
 
 # Build the jax-cuda-pjrt artifact
 if [[ "$JAXCI_BUILD_PJRT_ENABLE" == 1 ]]; then
-  jaxrun python3 ci/cli/build.py jax-cuda-pjrt
+  jaxrun python3 ci/cli/build.py jax-cuda-pjrt --mode=JAXCI_CLI_BUILD_MODE
 fi
 
 # After building `jaxlib`, `jaxcuda-plugin`, and `jax-cuda-pjrt`, we run
