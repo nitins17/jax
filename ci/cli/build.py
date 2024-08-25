@@ -72,10 +72,21 @@ def get_bazelrc_config(os_name: str, arch: str, artifact: str, mode:str, use_rbe
   """Returns the bazelrc config for the given architecture, OS, and build type."""
   bazelrc_config = f"{os_name}_{arch}"
 
+  # When the CLI is run by invoking ci/build_artifacts.sh, the CLI runs in CI
+  # mode and will use one of the "ci_" configs in the .bazelrc depending on the
+  # build type. We want to run certain CI builds with RBE and we also want to
+  # allow users the flexibility to build JAX artifacts either by running the CLI
+  # or by running ci/build_artifacts.sh. Because RBE requires permissions, we
+  # cannot enable RBE by default in the ci/build_artifacts.sh script. Instead,
+  # CI builds set JAXCI_USE_RBE to 1 to enable RBE.
+  if os.environ.get("JAXCI_USE_RBE", "0") == "1":
+    use_rbe = True
+
   # In CI, we want to use RBE where possible. At the moment, RBE is only
-  # supported on Linux x86 and Windows. If use_rbe is set, we will use RBE
-  # if the host system supports it, otherwise we will use the local config.
-  if (mode == "release" or use_rbe) and (os_name == "linux" or os_name == "windows") and arch == "x86_64":
+  # supported on Linux x86 and Windows. If an user is requesting RBE, the CLI
+  # will use RBE if the host system supports it, otherwise it will use the
+  # local config.
+  if use_rbe and (os_name == "linux" or os_name == "windows") and arch == "x86_64":
     bazelrc_config = "rbe_" + bazelrc_config
   elif mode == "local":
     if use_rbe:
@@ -88,6 +99,8 @@ def get_bazelrc_config(os_name: str, arch: str, artifact: str, mode:str, use_rbe
   else:
     if use_rbe:
       logger.warning("RBE is not supported on %s_%s. Using CI config instead.", os_name, arch)
+    elif (os_name == "linux" or os_name == "windows") and arch == "x86_64":
+      logger.info("RBE support is available for this platform. If you want to use RBE, run the CLI with `--use_rbe` or set `JAXCI_USE_RBE=1`")
     bazelrc_config = "ci_" + bazelrc_config
 
   if artifact == "jax-cuda-plugin" or artifact == "jax-cuda-pjrt":
