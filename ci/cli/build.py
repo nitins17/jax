@@ -270,6 +270,13 @@ async def main():
   if hasattr(args, "python_version"):
     bazel_command.append(f"--repo_env=HERMETIC_PYTHON_VERSION={args.python_version}")
 
+  # Set the CUDA and cuDNN versions if they are not the default.
+  if hasattr(args, "cuda_version") and args.cuda_version != "12.3.2":
+    bazel_command.append(f"--repo_env=HERMETIC_CUDA_VERSION={args.cuda_version}")
+
+  if hasattr(args, "cudnn_version") and args.cudnn_version != "9.1.1":
+    bazel_command.append(f"--repo_env=HERMETIC_CUDNN_VERSION={args.cudnn_version}")
+
   build_target, wheel_binary = ARTIFACT_BUILD_TARGET_DICT[args.command]
   bazel_command.append(build_target)
 
