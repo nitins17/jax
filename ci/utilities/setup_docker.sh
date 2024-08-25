@@ -43,7 +43,7 @@ if ! docker container inspect jax >/dev/null 2>&1 ; then
   # overridden by the setting `local_wheel_dist_folder`.
   docker run $JAXCI_DOCKER_ARGS --name jax -w $JAXCI_CONTAINER_WORK_DIR -itd --rm \
       -v "$JAXCI_GIT_DIR:$JAXCI_CONTAINER_WORK_DIR" \
-      -e JAXCI_OUTPUT_DIR=$JAXCI_OUTPUT_DIR \
+      --env-file <(env | grep ^JAXCI_ ) \
       -e local_wheel_dist_folder=$JAXCI_OUTPUT_DIR \
       "$JAXCI_DOCKER_IMAGE" \
     bash
