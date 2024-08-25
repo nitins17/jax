@@ -72,19 +72,20 @@ def get_bazelrc_config(os_name: str, arch: str, artifact: str, mode:str, use_rbe
   """Returns the bazelrc config for the given architecture, OS, and build type."""
   bazelrc_config = f"{os_name}_{arch}"
 
-  # RBE is only supported on Linux x86 and Windows. CI builds use RBE by default.
+  # In CI, we want to use RBE where possible. At the moment, RBE is only
+  # supported on Linux x86 and Windows. If use_rbe is set, we will use RBE
+  # if the host system supports it, otherwise we will use the local config.
   if (mode == "release" or use_rbe) and (os_name == "linux" or os_name == "windows") and arch == "x86_64":
     bazelrc_config = "rbe_" + bazelrc_config
   elif mode == "local":
     if os_name == "linux" and arch == "aarch64" and artifact == "jaxlib":
-      logger.info("Linux Aarch64 CPU builds do not have custom local config. Running Bazel as is.")
+      logger.info("Linux Aarch64 CPU builds do not have custom local config in JAX's root .bazelrc. Running with default configs.")
       bazelrc_config = ""
       return bazelrc_config
     if use_rbe:
       logger.warning("RBE is not supported on %s_%s. Using Local config instead.", os_name, arch)
     bazelrc_config = "local_" + bazelrc_config
   else:
-    # RBE is only supported on Linux x86 and Windows
     bazelrc_config = "ci_" + bazelrc_config
 
   if artifact == "jax-cuda-plugin" or artifact == "jax-cuda-pjrt":
@@ -253,9 +254,14 @@ async def main():
       bazel_command.append("--repo_env BAZEL_COMPILER='{}'".format(clang_path))
       bazel_command.append("--config=clang")
 
-  bazel_command.append(
-      "--config={}".format(get_bazelrc_config(os_name, arch, args.command, args.mode, args.use_rbe))
-  )
+  # JAX's .bazelrc has custom configs for each build type, architecture, and
+  # OS. Fetch the appropriate config and pass it to Bazel. A special case is
+  # when building for Linux Aarch64, which does not have a custom local config
+  # in JAX's .bazelrc. In this case, we build with the default configs.
+  bazelrc_config = get_bazelrc_config(os_name, arch, args.command, args.mode, args.use_rbe)
+  if bazelrc_config:
+    bazel_command.append("--config=%s", bazelrc_config)
+
   if hasattr(args, "python_version"):
     bazel_command.append(
         "--repo_env=HERMETIC_PYTHON_VERSION={}".format(args.python_version)
