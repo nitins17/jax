@@ -51,14 +51,14 @@ fi
 # functionality instead.
 jaxrun() { "$@"; }
 
-if [[ -z ${JAXCI_XLA_GIT_DIR+dummy} ]]; then
-  # When running tests, we need to check out XLA at HEAD.
-  if [[ "$JAXCI_RUN_TESTS" == 1 ]]; then
+# When running tests, we need to check out XLA at HEAD.
+if [[ -z ${JAXCI_XLA_GIT_DIR} ]] && [[ "$JAXCI_RUN_TESTS" == 1 ]]; then
     export JAXCI_XLA_GIT_DIR=$(pwd)/xla
     echo "Checking out XLA..."
     jaxrun git clone --depth=1 https://github.com/openxla/xla.git "$JAXCI_XLA_GIT_DIR"
-  fi
-else
+fi
+
+if [[ -n ${JAXCI_XLA_GIT_DIR} ]]; then
   echo "Using XLA from $JAXCI_XLA_GIT_DIR"
 fi
 
@@ -67,10 +67,9 @@ if [[ "$JAXCI_XLA_COMMIT" ]]; then
 
   jaxrun git fetch --depth=1 origin "$JAXCI_XLA_COMMIT"
   jaxrun git checkout "$JAXCI_XLA_COMMIT"
-
   jaxrun echo "XLA git hash: $(git rev-parse HEAD)"
 
-  popd
+  jaxrun popd
 fi
 
 # All builds except for Mac run under Docker.
