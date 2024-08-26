@@ -52,18 +52,20 @@ fi
 jaxrun() { "$@"; }
 
 # When running tests, we need to check out XLA at HEAD.
-if [[ -z ${JAXCI_XLA_GIT_DIR} ]] && [[ "$JAXCI_RUN_TESTS" == 1 ]]; then
-    rm -rf $(pwd)/xla
-    echo "Checking out XLA..."
-    jaxrun git clone --depth=1 https://github.com/openxla/xla.git $(pwd)/xla
-    echo "Using XLA from $(pwd)/xla"
+if [[ -n ${JAXCI_XLA_GIT_DIR} ]] && [[ "$JAXCI_RUN_TESTS" == 1 ]]; then
+    if [[ ! -d $(pwd)/xla ]]; then
+      rm -rf $(pwd)/xla
+      echo "Checking out XLA..."
+      jaxrun git clone --depth=1 https://github.com/openxla/xla.git $(pwd)/xla
+      echo "Using XLA from $(pwd)/xla"
+    fi
 fi
 
 if [[ -n ${JAXCI_XLA_GIT_DIR} ]]; then
   echo "Using XLA from $JAXCI_XLA_GIT_DIR"
 fi
 
-if [[ -z "$JAXCI_XLA_COMMIT" ]]; then
+if [[ -n "$JAXCI_XLA_COMMIT" ]]; then
   jaxrun pushd "$JAXCI_XLA_GIT_DIR"
 
   jaxrun git fetch --depth=1 origin "$JAXCI_XLA_COMMIT"

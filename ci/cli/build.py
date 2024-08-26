@@ -279,7 +279,7 @@ async def main():
 
   bazel_command.append("build")
 
-  if args.use_clang:
+  if args.use_clang or args.clang_path:
       # Find the path to Clang
     clang_path = tools.get_clang_path(args.clang_path)
     if clang_path:

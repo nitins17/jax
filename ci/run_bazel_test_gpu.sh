@@ -24,17 +24,14 @@ if [[ $JAXCI_RUN_BAZEL_GPU_TEST_LOCAL == 1 ]]; then
       echo "Running local GPU tests..."
 
       jaxrun "$JAXCI_PYTHON" -c "import jax; print(jax.default_backend()); print(jax.devices()); print(len(jax.devices()))"
-      # Local GPU tests. As a prequisite, these require the `jaxlib`,
-      # `jax-cuda-plugin` and `jax-cuda-pjrt` wheels to be present on the
-      # system. By default, Bazel looks for these wheels in the ../dist
-      # directory. This can be overriden by setting `local_wheel_dist_folder`.
-      # Only Linux x86 builds run these for now.
 
+      # Only Linux x86 builds run these for now.
       # Runs non-multiaccelerator tests with one GPU apiece.
       # It appears --run_under needs an absolute path.
       jaxrun bazel --bazelrc=ci/.bazelrc test --config=ci_${os}_${arch}_cuda \
             --config=non_multiaccelerator_local \
             --repo_env=HERMETIC_PYTHON_VERSION="$JAXCI_HERMETIC_PYTHON_VERSION" \
+            --override_repository=xla="${JAXCI_XLA_GIT_DIR}" \
             --run_under "$JAXCI_CONTAINER_WORK_DIR/build/parallel_accelerator_execute.sh" \
             //tests:gpu_tests //tests:backend_independent_tests //tests/pallas:gpu_tests //tests/pallas:backend_independent_tests
 
@@ -42,6 +39,7 @@ if [[ $JAXCI_RUN_BAZEL_GPU_TEST_LOCAL == 1 ]]; then
       jaxrun bazel --bazelrc=ci/.bazelrc test --config=ci_${os}_${arch}_cuda \ 
             --config=multiaccelerator_local \
             --repo_env=HERMETIC_PYTHON_VERSION="$JAXCI_HERMETIC_PYTHON_VERSION" \
+            --override_repository=xla="${JAXCI_XLA_GIT_DIR}" \
             //tests:gpu_tests //tests/pallas:gpu_tests
 fi
 
