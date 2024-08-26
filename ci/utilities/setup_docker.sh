@@ -41,7 +41,10 @@ if ! docker container inspect jax >/dev/null 2>&1 ; then
   # If XLA repository on the local system is to be used, map it to the container
   # and set the JAXCI_XLA_GIT_DIR environment variable to the container path.
   if [[ -n $JAXCI_XLA_GIT_DIR ]]; then
-    JAXCI_DOCKER_ARGS="$JAXCI_DOCKER_ARGS -v $JAXCI_XLA_GIT_DIR:$JAXCI_CONTAINER_WORK_DIR/xla -e JAXCI_XLA_GIT_DIR=$JAXCI_CONTAINER_WORK_DIR/xla"
+    # Update `JAXCI_XLA_GIT_DIR` with the new path on the host and in
+    # the container.
+    export JAXCI_XLA_GIT_DIR=$JAXCI_CONTAINER_WORK_DIR/xla
+    JAXCI_DOCKER_ARGS="$JAXCI_DOCKER_ARGS -v $JAXCI_XLA_GIT_DIR:$JAXCI_CONTAINER_WORK_DIR/xla -e JAXCI_XLA_GIT_DIR=$JAXCI_XLA_GIT_DIR"
   fi
 
   # When running `bazel test` and specifying dependencies on local wheels, 
