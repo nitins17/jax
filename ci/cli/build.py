@@ -199,7 +199,7 @@ async def main():
   parser.add_argument(
     "--local_xla_path",
     type=str,
-    default="",
+    default=os.environ.get("JAXCI_XLA_GIT_DIR", ""),
     help=
       """
       Path to local XLA repository to use. If not set, Bazel uses the XLA
@@ -303,8 +303,7 @@ async def main():
   # Check if we are running tests or if a local XLA path is set.
   # When running tests, JAX arifacts and tests are run with XLA at head.
   if check_whether_running_tests() or args.local_xla_path:
-    xla_git_dir = os.environ.get("JAXCI_XLA_GIT_DIR", args.local_xla_path)
-    bazel_command.append(f"--override_repository=xla='{xla_git_dir}'")
+    bazel_command.append(f"--override_repository=xla='{args.local_xla_path}'")
 
   if hasattr(args, "python_version"):
     bazel_command.append(f"--repo_env=HERMETIC_PYTHON_VERSION={args.python_version}")

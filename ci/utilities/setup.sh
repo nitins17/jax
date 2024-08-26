@@ -51,13 +51,13 @@ fi
 # functionality instead.
 jaxrun() { "$@"; }
 
-# When running tests, check out XLA at head. Usually only used when running
-# tests. It is done here instead of in the test environment setup because
-# as the script is meant to be run with or without Docker.
-if [[ -z ${JAXCI_XLA_GIT_DIR+dummy} ]] && [[ "$JAXCI_RUN_TESTS" == 1 ]]; then
-  export JAXCI_XLA_GIT_DIR=$(pwd)/xla
-  echo "Checking out XLA..."
-  jaxrun git clone --depth=1 https://github.com/openxla/xla.git "$JAXCI_XLA_GIT_DIR"
+if [[ -z ${JAXCI_XLA_GIT_DIR+dummy} ]]; then
+  # When running tests, we need to check out XLA at HEAD.
+  if [[ "$JAXCI_RUN_TESTS" == 1 ]]; then
+    export JAXCI_XLA_GIT_DIR=$(pwd)/xla
+    echo "Checking out XLA..."
+    jaxrun git clone --depth=1 https://github.com/openxla/xla.git "$JAXCI_XLA_GIT_DIR"
+  fi
 else
   echo "Using XLA from $JAXCI_XLA_GIT_DIR"
 fi

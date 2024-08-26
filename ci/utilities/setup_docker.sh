@@ -38,12 +38,18 @@ if ! docker container inspect jax >/dev/null 2>&1 ; then
     JAXCI_DOCKER_ARGS="$JAXCI_DOCKER_ARGS -v $HOME/.config/gcloud:/root/.config/gcloud"
   fi
 
+  # If XLA repository on the local system is to be used, map it to the container
+  # and set the JAXCI_XLA_GIT_DIR environment variable to the container path.
+  if [[ -n $JAXCI_XLA_GIT_DIR ]]; then
+    JAXCI_DOCKER_ARGS="$JAXCI_DOCKER_ARGS -v $JAXCI_XLA_GIT_DIR:$JAXCI_CONTAINER_WORK_DIR/xla -e JAXCI_XLA_GIT_DIR=$JAXCI_CONTAINER_WORK_DIR/xla"
+  fi
+
   # When running `bazel test` and specifying dependencies on local wheels, 
   # Bazel will look for them in the ../dist directory by default. This can be
   # overridden by the setting `local_wheel_dist_folder`.
-  docker run $JAXCI_DOCKER_ARGS --name jax -w $JAXCI_CONTAINER_WORK_DIR -itd --rm \
+  docker run --env-file <(env | grep ^JAXCI_ ) $JAXCI_DOCKER_ARGS --name jax \
+      -w $JAXCI_CONTAINER_WORK_DIR -itd --rm \
       -v "$JAXCI_GIT_DIR:$JAXCI_CONTAINER_WORK_DIR" \
-      --env-file <(env | grep ^JAXCI_ ) \
       -e local_wheel_dist_folder=$JAXCI_OUTPUT_DIR \
       "$JAXCI_DOCKER_IMAGE" \
     bash
