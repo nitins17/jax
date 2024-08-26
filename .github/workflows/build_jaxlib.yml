@@ -13,18 +13,16 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     container:
-      image: "index.docker.io/tensorflow/build@sha256:7fb38f0319bda36393cad7f40670aa22352b44421bb906f5cf34d543acd8e1d2"
+      image: "index.docker.io/tensorflow/build@sha256:e042f39c18a01012349ad42ae69f6c9fb6e8cc912ddf362d47f6caf1f97f54c3"
 
     env:
       ENV_FILE: ci/envs/build_artifacts/jaxlib/linux_x86/py312
-      JAXCI_RUN_IN_ACTIONS: 1
+      JAXCI_USE_DOCKER: 0
 
     steps:
       - uses: actions/checkout@v3
       # Halt for testing
       - name: Wait For Connection
-        uses: google-ml-infra/jax-fork/actions/ci_connection@61e7d8d6c273b102e4a6271c1e84bd0a4febc8cb
-        with:
-          halt-dispatch-input: "1"
+        uses: google-ml-infra/jax-fork/actions/ci_connection@9126cd849143fc870ee4c481527fc4b82794887b
       - name: Run build script
         run: ./ci/build_artifacts.sh
