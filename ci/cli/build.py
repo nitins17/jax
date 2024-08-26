@@ -114,6 +114,14 @@ def get_jaxlib_git_hash():
   res = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
   return res.stdout
 
+def check_whether_running_tests():
+  """
+  Returns True if running tests, False otherwise. When running tests, JAX
+  artifacts are built with `JAX_ENABLE_X64=0` and the XLA repository is checked
+  out at HEAD instead of the pinned version.
+  """
+  return os.environ.get("JAXCI_RUN_TESTS", "0") == "1"
+
 async def main():
   parser = argparse.ArgumentParser(
       description=(
@@ -188,6 +196,17 @@ async def main():
       """,
   )
 
+  parser.add_argument(
+    "--local_xla_path",
+    type=str,
+    default="",
+    help=
+      """
+      Path to local XLA repository to use. If not set, Bazel uses the XLA
+      at the pinned version in workspace.bzl.
+      """,
+  )
+  
   parser.add_argument(
       "--dry_run",
       action="store_true",
@@ -280,6 +299,12 @@ async def main():
   bazelrc_config = get_bazelrc_config(os_name, arch, args.command, args.mode, args.use_rbe)
   if bazelrc_config:
     bazel_command.append(f"--config={bazelrc_config}")
+
+  # Check if we are running tests or if a local XLA path is set.
+  # When running tests, JAX arifacts and tests are run with XLA at head.
+  if check_whether_running_tests() or args.local_xla_path:
+    xla_git_dir = os.environ.get("JAXCI_XLA_GIT_DIR", args.local_xla_path)
+    bazel_command.append(f"--override_repository=xla='{xla_git_dir}'")
 
   if hasattr(args, "python_version"):
     bazel_command.append(f"--repo_env=HERMETIC_PYTHON_VERSION={args.python_version}")

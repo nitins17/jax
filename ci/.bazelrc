@@ -129,8 +129,8 @@ build:cuda --@xla//xla/python:jax_cuda_pip_rpaths=true
 build:cuda --repo_env=HERMETIC_CUDA_VERSION="12.3.2"
 build:cuda --repo_env=HERMETIC_CUDNN_VERSION="9.1.1"
 
-# This flag is needed to include hermetic CUDA libraries for bazel tests.
-test:cuda --@local_config_cuda//cuda:include_hermetic_cuda_libs=true
+# This flag is needed to include CUDA libraries for bazel tests.
+test:cuda --@local_config_cuda//cuda:include_cuda_libs=true
 
 # Force the linker to set RPATH, not RUNPATH. When resolving dynamic libraries,
 # ld.so prefers in order: RPATH, LD_LIBRARY_PATH, RUNPATH. JAX sets RPATH to
@@ -415,24 +415,34 @@ build:rbe_cross_compile_macos_x86 --config=rbe_cross_compile_base
 # #############################################################################
 test --test_output=errors
 
+# Configs for for running GPU tests.
+test:gpu --test_env=TF_CPP_MIN_LOG_LEVEL=0
+test:gpu --test_env=JAX_SKIP_SLOW_TESTS=1 --test_env=XLA_PYTHON_CLIENT_ALLOCATOR=platform
+
+# Configs for local_gpu
+test:local_gpu --config=gpu
 # Disable building jaxlib. Instead we depend on the local wheel. 
 test:local_gpu --//jax:build_jaxlib=false 
-test:local_gpu --test_env=JAX_SKIP_SLOW_TESTS=1 --test_env=XLA_PYTHON_CLIENT_ALLOCATOR=platform
 
-# Non-multiaccelerator tests with one GPU apiece.
-test:non_multiaccelerator --config=local_gpu
-# `JAX_ACCELERATOR_COUNT` needs to match the number of GPUs in the VM.
-test:non_multiaccelerator --test_env=JAX_TESTS_PER_ACCELERATOR=12 --test_env=JAX_ACCELERATOR_COUNT=4
-
-# The product of the `JAX_ACCELERATOR_COUNT`` and `JAX_TESTS_PER_ACCELERATOR`
-# should match the VM's CPU core count (set in `--local_test_jobs`).
-test:non_multiaccelerator --local_test_jobs=48 
+# Non-multiaccelerator tests with one GPU apiece. Non-multiaccelerator tests
+# are run on RBE and locally.
+test:non_multiaccelerator --config=gpu
 test:non_multiaccelerator --test_env=JAX_EXCLUDE_TEST_TARGETS=PmapTest.testSizeOverflow
 test:non_multiaccelerator --test_tag_filters=-multiaccelerator
 
-# Runs multiaccelerator tests with all GPUs.
-test:multiaccelerator --config=local_gpu
-test:multiaccelerator --jobs=8 --test_tag_filters=multiaccelerator
+test:non_multiaccelerator_local --config=non_multiaccelerator
+test:non_multiaccelerator_local --config=local_gpu
+# `JAX_ACCELERATOR_COUNT` needs to match the number of GPUs in the VM.
+test:non_multiaccelerator_local --test_env=JAX_TESTS_PER_ACCELERATOR=12 --test_env=JAX_ACCELERATOR_COUNT=4
+
+# The product of the `JAX_ACCELERATOR_COUNT`` and `JAX_TESTS_PER_ACCELERATOR`
+# should match the VM's CPU core count (set in `--local_test_jobs`).
+test:non_multiaccelerator_local --local_test_jobs=48 
+
+# Runs multiaccelerator tests with all GPUs. Multiaccelerator GPU tests are
+# only run locally
+test:multiaccelerator_local --config=local_gpu
+test:multiaccelerator_local --jobs=8 --test_tag_filters=multiaccelerator
 
 #############################################################################
 # Some configs to make getting some forms of debug builds. In general, the

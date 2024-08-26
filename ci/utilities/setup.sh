@@ -51,43 +51,37 @@ fi
 # functionality instead.
 jaxrun() { "$@"; }
 
+# When running tests, check out XLA at head. Usually only used when running
+# tests. It is done here instead of in the test environment setup because
+# as the script is meant to be run with or without Docker.
+if [[ -z ${JAXCI_XLA_GIT_DIR+dummy} ]] && [[ "$JAXCI_RUN_TESTS" == 1 ]]; then
+  export JAXCI_XLA_GIT_DIR=$(pwd)/xla
+  echo "Checking out XLA..."
+  jaxrun git clone --depth=1 https://github.com/openxla/xla.git "$JAXCI_XLA_GIT_DIR"
+else
+  echo "Using XLA from $JAXCI_XLA_GIT_DIR"
+fi
+
+if [[ "$JAXCI_XLA_COMMIT" ]]; then
+  jaxrun pushd "$JAXCI_XLA_GIT_DIR"
+
+  jaxrun git fetch --depth=1 origin "$JAXCI_XLA_COMMIT"
+  jaxrun git checkout "$JAXCI_XLA_COMMIT"
+
+  jaxrun echo "XLA git hash: $(git rev-parse HEAD)"
+
+  popd
+fi
+
 # All builds except for Mac run under Docker.
 # GitHub actions do not need to invoke this script. It always runs in a Docker
 # container. The image and the runner type are set in the workflow file.
-if [[ "$JAXCI_USE_DOCKER" == 1 ]] || [[ "$(uname -s)" != "Darwin" ]]; then
+if [[ "$JAXCI_USE_DOCKER" == 1 ]]; then
   source ./ci/utilities/setup_docker.sh
 fi
 
-# Set Bazel configs. Temporary; in the final version of the CL, after the build
-# CLI has been reworked, these will be removed. The build CLI will handle
-# setting the Bazel configs.
-if [[ "$JAXCI_RUN_TESTS" != 1 ]]; then
-  if [[ "$(uname -s)" == "Linux" && $(uname -m) == "x86_64" ]]; then
-    if [[ "$JAXCI_BUILD_JAXLIB_ENABLE" == 1 ]]; then
-      export BAZEL_CONFIG_CPU=rbe_linux_x86_64
-    else
-      export BAZEL_CONFIG_CUDA=rbe_linux_x86_64_cuda
-    fi
-  elif [[ "$(uname -s)" == "Linux" && $(uname -m) == "aarch64" ]]; then
-    if [[ "$JAXCI_BUILD_JAXLIB_ENABLE" == 1 ]]; then
-      export BAZEL_CONFIG_CPU=ci_linux_aarch64_cpu
-    else
-      export BAZEL_CONFIG_CUDA=ci_linux_aarch64_cuda
-    fi
-  elif [[ "$(uname -s)" =~ "MSYS_NT" && $(uname -m) == "x86_64" ]]; then
-    export BAZEL_CONFIG_CPU=rbe_windows_x86_64
-  elif [[ "$(uname -s)" == "Darwin" && $(uname -m) == "x86_64" ]]; then
-    export BAZEL_CONFIG_CPU=ci_darwin_x86_64
-  elif [[ "$(uname -s)" == "Darwin" && $(uname -m) == "arm64" ]]; then
-    export BAZEL_CONFIG_CPU=ci_darwin_arm64
-  else
-    echo "Unsupported platform: $(uname -s) $(uname -m)"
-    exit 1
-  fi
-fi
-
 if [[ "$JAXCI_RUN_TESTS" == 1 ]]; then
-  jaxrun bash -c "$JAXCI_PYTHON -m pip install $JAXCI_OUTPUT_DIR/*.whl"
+   source ./ci/utilities/setup_test_environment.sh
 fi
 
 # TODO: cleanup steps
