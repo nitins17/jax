@@ -50,12 +50,11 @@ if __name__ == "__main__":
     # TODO: actually get this data from workflow files
     print(f"The next command that would have run is:\n\n{next_command}")
 
-    print("PUT DEBUG COMMAND HERE\n")
     # Set the hardcoded envs for testing purposes
     # TODO: sync env vars
     sub_env = os.environ.copy()
     sub_env["ENV_FILE"] = "ci/envs/build_artifacts/jaxlib/linux_x86/py312"
-    sub_env["JAXCI_USE_DOCKER"] = 0
+    sub_env["JAXCI_USE_DOCKER"] = "0"
 
     # Enter interactive bash session
     subprocess.run(["/bin/bash", "-i"], env=sub_env)
