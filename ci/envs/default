@@ -46,6 +46,9 @@ if [[ $JAXCI_RUN_TESTS == 1 ]]; then
   export JAX_ENABLE_X64=0
 fi
 
+export JAXCI_RUN_BAZEL_GPU_TEST_LOCAL=${JAXCI_RUN_BAZEL_GPU_TEST_LOCAL:-0}
+export JAXCI_RUN_BAZEL_GPU_TEST_RBE=${JAXCI_RUN_BAZEL_GPU_TEST_RBE:-0}
+
 # Allow overriding the XLA git repository path and commit.
 export JAXCI_XLA_GIT_DIR=${JAXCI_XLA_GIT_DIR:-}
 export JAXCI_XLA_COMMIT=${JAXCI_XLA_COMMIT:-}
