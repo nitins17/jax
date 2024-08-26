@@ -45,7 +45,7 @@ if __name__ == "__main__":
     print("Entering interactive bash session")
   
     # Hard-coded for now for demo purposes.
-    next_command = "export ENV_FILE=ci/envs/build_artifacts/jaxlib/linux_x86 && bash ci/build_artifacts.sh"
+    next_command = "bash ci/build_artifacts.sh"
     # Print the "next" commands to be run
     # TODO: actually get this data from workflow files
     print(f"The next command that would have run is:\n\n{next_command}")
@@ -54,7 +54,8 @@ if __name__ == "__main__":
     # Set the hardcoded envs for testing purposes
     # TODO: sync env vars
     sub_env = os.environ.copy()
-    sub_env["DEMO"] = "someval"
+    sub_env["ENV_FILE"] = "ci/envs/build_artifacts/jaxlib/linux_x86/py312"
+    sub_env["JAXCI_USE_DOCKER"] = 0
 
     # Enter interactive bash session
     subprocess.run(["/bin/bash", "-i"], env=sub_env)
