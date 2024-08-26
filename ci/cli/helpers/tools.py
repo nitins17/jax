@@ -1,9 +1,7 @@
-# Helper tools such as
 import collections
 import hashlib
 import logging
 import os
-import pathlib
 import platform
 import shutil
 import subprocess
@@ -43,13 +41,6 @@ BAZELISK_PACKAGES = {
             "29753341c0ddc35931fb240e247fbba0b83ef81bccc2433dd075363ec02a67a6"
         ),
     ),
-    ("Windows", "AMD64"): BazeliskPackage(
-        file="bazelisk-windows-amd64.exe",
-        sha256=(
-            "4175ce7ef4b552fb17e93ce49a245679dc26a35cf2fbc7c3146daca6ffc7a81e"
-        ),
-    ),
-# Get current python version as a matrix enum
     ("Windows", "AMD64"): BazeliskPackage(
         file="bazelisk-windows-amd64.exe",
         sha256=(
@@ -111,15 +102,16 @@ def verify_bazel_version(bazel_path):
   system_bazel_version = system_bazel_version.split(" ")[1]
   expected_bazel_version = get_jax_supported_bazel_version()
   if expected_bazel_version != system_bazel_version:
-      logger.info("Bazel version mismatch. "
-                  "JAX requires {} but got {} when `{} --version` was run".format(expected_bazel_version, system_bazel_version, bazel_path))
-      return False
+    logger.info("Bazel version mismatch. JAX requires %s but got %s when `%s --version` was run", expected_bazel_version, system_bazel_version, bazel_path)
+    return False
   return True
 
 def guess_bazel_paths(bazel_path_flag):
   """Yields a sequence of guesses about bazel path. Some of sequence elements
   can be None. The resulting iterator is lazy and potentially has a side
-  effects."""
+  effects.
+  """
+  
   yield bazel_path_flag
   # For when Bazelisk was downloaded and is present on the root JAX directory
   yield shutil.which("./bazel")
@@ -148,6 +140,7 @@ def download_and_verify_bazelisk():
   logger.info("Checksum verified!")
 
   logger.info("Setting the Bazelisk binary to executable mode...")
-  subprocess.run(["chmod", "+x", downloaded_filename])
+  subprocess.run(["chmod", "+x", downloaded_filename], check=True)
 
   return os.path.realpath(downloaded_filename)
+

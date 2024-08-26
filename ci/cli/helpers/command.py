@@ -1,17 +1,11 @@
 import asyncio
 import dataclasses
 import datetime
-import time
 import os
 import logging
 from typing import Dict, Optional
 
 logger = logging.getLogger()
-
-# Module level varaibles that we don't want to have to repeat multiple times
-bazel_path = ""
-clang_path = ""
-
 
 class CommandBuilder:
   def __init__(self, base_command: str):
@@ -80,11 +74,11 @@ class SubprocessExecutor:
     """
     result = CommandResult(command=cmd)
     if dry_run:
-      logger.info(f"[DRY RUN] {cmd}")
+      logger.info("[DRY RUN] %s", cmd)
       result.return_code = 0  # Dry run is a success
       return result
 
-    logger.debug(f"Executing: {cmd}")
+    logger.debug("Executing: %s", cmd)
 
     process = await asyncio.create_subprocess_shell(
       cmd,
@@ -100,7 +94,7 @@ class SubprocessExecutor:
           break
         line = line_bytes.decode().rstrip()
         result.logs += line
-        logger.info(f"{line}")
+        logger.info("%s", line)
 
     await asyncio.gather(
       log_stream(process.stdout, result), log_stream(process.stderr, result)
@@ -108,5 +102,5 @@ class SubprocessExecutor:
 
     result.return_code = await process.wait()
     result.end_time = datetime.datetime.now()
-    logger.debug(f"Command finished with return code {result.return_code}")
+    logger.debug("Command finished with return code %s", result.return_code)
     return result

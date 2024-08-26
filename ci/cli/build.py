@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# A cli using argparse that accepts the enums defined in matrix.py as options
 import argparse
 import asyncio
 import logging
@@ -350,3 +349,4 @@ async def main():
 
 if __name__ == "__main__":
   asyncio.run(main())
+  
