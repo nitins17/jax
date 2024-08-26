@@ -15,7 +15,7 @@
 # ==============================================================================
 source "ci/utilities/setup.sh"
 
-jaxrun "$JAXCI_PYTHON" -c "import jax; print(jax.default_backend()); print(jax.devices()); print(len(jax.devices()))"
+jaxrun nvidia-smi
 
 os=$(uname -s | awk '{print tolower($0)}')
 arch=$(uname -m)
@@ -23,7 +23,7 @@ arch=$(uname -m)
 if [[ $JAXCI_RUN_BAZEL_GPU_TEST_LOCAL == 1 ]]; then
       echo "Running local GPU tests..."
 
-      jaxrun nvidia-smi
+      jaxrun "$JAXCI_PYTHON" -c "import jax; print(jax.default_backend()); print(jax.devices()); print(len(jax.devices()))"
       # Local GPU tests. As a prequisite, these require the `jaxlib`,
       # `jax-cuda-plugin` and `jax-cuda-pjrt` wheels to be present on the
       # system. By default, Bazel looks for these wheels in the ../dist
@@ -43,7 +43,9 @@ if [[ $JAXCI_RUN_BAZEL_GPU_TEST_LOCAL == 1 ]]; then
             --config=multiaccelerator_local \
             --repo_env=HERMETIC_PYTHON_VERSION="$JAXCI_HERMETIC_PYTHON_VERSION" \
             //tests:gpu_tests //tests/pallas:gpu_tests
-else
+fi
+
+if [[ $JAXCI_RUN_BAZEL_GPU_TEST_RBE == 1 ]]; then
       echo "Running RBE GPU tests..."
       # RBE GPU tests. Only Linux x86 builds run these for now.
       # Runs non-multiaccelerator tests with one GPU apiece.

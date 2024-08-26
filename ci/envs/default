@@ -41,8 +41,7 @@ export JAXCI_GIT_DIR=$(pwd)
 # `run_pytest.sh`
 export JAXCI_RUN_TESTS=${JAXCI_RUN_TESTS:-0}
 
-# JAX Bazel tests when run locally depend on local JAX wheels. These are built
-# with x64 mode disabled.
+# When running tests, we disable x64 mode.
 if [[ $JAXCI_RUN_TESTS == 1 ]]; then
   export JAX_ENABLE_X64=0
 fi
