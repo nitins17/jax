@@ -1,5 +1,0 @@
-# Inherit default environment variables.
-source ci/envs/default
-
-# Enable jaxlib build.
-export JAXCI_BUILD_JAXLIB_ENABLE="1"
