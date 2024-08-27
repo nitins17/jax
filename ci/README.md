@@ -19,12 +19,11 @@ code.
 
 JAX's official CI jobs run the scripts in this folder. The CI scripts require
 an env file to be set in `ENV_FILE` that sets various configuration settings.
-These "env" files are structured according to the build type and platform
-that they target. For e.g., `ci/envs/build_artifacts/jaxlib/linux_x86` contains
-the configs for building the `jaxlib` package for Linux x86. The scripts are
-intended to be used across different platforms and architectures and currently
-supports the following systems: Linux x86, Linux Arm64, Mac x86, Mac Arm64,
-Windows x86.
+These "env" files are structured by their build type. For e.g.,
+`ci/envs/build_artifacts/jaxlib` contains the configs for building the `jaxlib`
+package. The scripts are intended to be used across different platforms and
+architectures and currently supports the following systems: Linux x86,
+Linux Arm64, Mac x86, Mac Arm64, Windows x86.
 
 
 If you would like to test these scripts, follow the instructions below.
@@ -62,17 +61,12 @@ If you are running this on a Linux x86 or a Windows machine, you have the option
 to use RBE to speed up the build. Please note this requires permissions to JAX's
 remote worker pool and RBE configs. To enable RBE, run `export JAXCI_USE_RBE=1`.
 
-Please note that running RBE from a machine that does not have the toolchain
-present on the system currently fails. This is unrelated to the work done in
-this rework and is something that is in progress to be fixed. Please use Docker
-to bypass this in the meantime.
-
 **How to run the script**
 
 ```
 1. Set ENV_FILE to one of the envs inside ci/build_artifacts based the artifact
 you want to build and your sytem.
-E.g. export ENV_FILE=ci/envs/build_artifacts/jaxlib/linux_x86
+E.g. export ENV_FILE=ci/envs/build_artifacts/jaxlib
 2. Run: bash ci/build_artifacts.sh
 ```
 
@@ -113,9 +107,6 @@ inside `ci/build_artfacts` to know which image we use for each platform.
 If you are running this on a Linux x86 or a Windows machine, you have the option
 to use RBE to speed up the build. Please note this requires permissions to JAX's
 remote worker pool and RBE configs. To enable RBE, set `--use_rbe` to you command.
-Please note that running RBE from a machine that does not have the toolchain
-present on the system currently fails. This is unrelated to the work done in
-this effort and is something that is in progress to be fixed. 
 
 **Changing Python version**
 
