@@ -16,8 +16,9 @@ jobs:
       image: "index.docker.io/tensorflow/build@sha256:e042f39c18a01012349ad42ae69f6c9fb6e8cc912ddf362d47f6caf1f97f54c3"
 
     env:
-      ENV_FILE: ci/envs/build_artifacts/jaxlib/linux_x86/py312
+      ENV_FILE: ci/envs/build_artifacts/jaxlib
       JAXCI_USE_DOCKER: 0
+      JAXCI_USE_RBE: 1
 
     steps:
       - uses: actions/checkout@v3
