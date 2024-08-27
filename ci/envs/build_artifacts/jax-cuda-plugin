@@ -10,7 +10,7 @@ os=$(uname -s | awk '{print tolower($0)}')
 arch=$(uname -m)
 
 # Linux x86 specifc settings
-if [[ $os == "linux" ]] and [[ $arch == "x86_64" ]]; then
+if [[ $os == "linux" ]] && [[ $arch == "x86_64" ]]; then
   # Note Python version of the container does not matter. JAX supports hermetic
   # Python and thus the actual Python version of the artifact is controlled by
   # the value set in `HERMETIC_PYTHON_VERSION`
