@@ -18,6 +18,6 @@ if [[ $os == "linux" ]] && [[ $arch == "x86_64" ]]; then
 fi
 
 # Linux Aarch64 specifc settings
-if [[ $os == "linux" ]] and [[ $arch == "x86_64" ]]; then
+if [[ $os == "linux" ]] && [[ $arch == "aarch64" ]]; then
   export JAXCI_DOCKER_IMAGE="us-central1-docker.pkg.dev/tensorflow-sigs/tensorflow/build-arm64:tf-2-18-multi-python"
 fi
