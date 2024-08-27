@@ -35,6 +35,11 @@ fi
 set -x
 source "$ENV_FILE"
 
+# Pre-emptively mark the git directory as safe. This is necessary for JAX CI
+# jobs running on GitHub Actions. Without this, git complains that the directory
+# has dubious ownership and refuses to run any commands.
+git config --global --add safe.directory $JAXCI_GIT_DIR
+
 # Decide whether to use the release tag. JAX CI jobs build from the main
 # branch by default. 
 if [[ -n "$JAXCI_RELEASE_TAG" ]]; then

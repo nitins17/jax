@@ -317,7 +317,8 @@ async def main():
   build_target, wheel_binary = ARTIFACT_BUILD_TARGET_DICT[args.command]
   bazel_command.append(build_target)
 
-  logger.info("%s\n", bazel_command.command)
+  logger.info("Bazel build command:")
+  logger.info("\n%s\n", bazel_command.command)
 
   if args.dry_run:
     logger.info("CLI is in dry run mode. Exiting without invoking Bazel.")
@@ -344,7 +345,8 @@ async def main():
     jaxlib_git_hash = get_jaxlib_git_hash()
     run_wheel_binary.append(f"--jaxlib_git_hash={jaxlib_git_hash}")
 
-    logger.info("%s\n", run_wheel_binary.command)
+    logger.info("Wheel build command:")
+    logger.info("\n%s\n", run_wheel_binary.command)
     await executor.run(run_wheel_binary.command)
 
 if __name__ == "__main__":
