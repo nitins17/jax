@@ -36,6 +36,11 @@ register_toolchains("@rules_ml_toolchain//cc:linux_aarch64_linux_aarch64")
 
 register_toolchains("@rules_ml_toolchain//cc:linux_aarch64_linux_aarch64_cuda")
 
+register_execution_platforms(
+	"//build/platforms:rbe_linux_x86_64",
+    "//build/platforms:rbe_linux_arm64"
+)
+
 # Initialize hermetic Python
 load("@xla//third_party/py:python_init_rules.bzl", "python_init_rules")
 
