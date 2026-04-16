@@ -1,3 +1,5 @@
+startup --host_jvm_args=-Xmx18G --host_jvm_args=-Xms18G
+
 # #############################################################################
 # All default build options below. These apply to all build commands.
 # #############################################################################
@@ -417,6 +419,14 @@ common:rbe --spawn_strategy=remote,worker,standalone,local
 common:rbe --remote_download_toplevel
 test:rbe --test_env=USER=anon
 test:rbe --test_env=IS_JAX_RBE_TESTING=1
+
+
+common:rbe_mac_arm64 --remote_instance_name=projects/ml-oss-rbe-general/instances/default_instance
+common:rbe_mac_arm64 --config=rbe 
+common:rbe_mac_arm64 --host_platform="//build/platforms:rbe_macos_arm64" #"@ml_build_config_platform//:platform"
+common:rbe_mac_arm64 --extra_execution_platforms="//build/platforms:rbe_macos_arm64" #"@ml_build_config_platform//:platform"
+common:rbe_mac_arm64 --platforms="//build/platforms:rbe_macos_arm64" #"@ml_build_config_platform//:platform"
+
 
 common:rbe_cpu_pool --repo_env=REMOTE_GPU_TESTING=0
 common:rbe_gpu_pool --repo_env=REMOTE_GPU_TESTING=1
