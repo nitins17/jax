@@ -42,6 +42,8 @@ register_execution_platforms(
 "//build/platforms:rbe_macos_arm64"
 )
 
+register_toolchains("//build/platforms:local_jdk_toolchain")
+
 # Initialize hermetic Python
 load("@xla//third_party/py:python_init_rules.bzl", "python_init_rules")
 

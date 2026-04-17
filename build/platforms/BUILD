@@ -1,5 +1,37 @@
 # //build:platforms/BUILD
 
+load("@bazel_tools//tools/jdk:default_java_toolchain.bzl", "BASE_JDK9_JVM_OPTS")
+
+package(default_visibility = ["//visibility:public"])
+
+java_runtime(
+    name = "local_jdk",
+    java_home = "/Library/Java/JavaVirtualMachines/default/Contents/Home",
+    tags = ["manual"],
+)
+
+java_toolchain(
+    name = "local_jdk_config",
+    genclass = "@bazel_tools//tools/jdk:genclass",
+    ijar = "@bazel_tools//tools/jdk:ijar",
+    java_runtime = ":local_jdk",
+    javabuilder = "@bazel_tools//tools/jdk:javabuilder",
+    jvm_opts = BASE_JDK9_JVM_OPTS,
+    singlejar = "@bazel_tools//tools/jdk:singlejar",
+)
+
+toolchain(
+    name = "local_jdk_toolchain",
+    target_compatible_with = [
+        "@platforms//os:macos",
+        "@platforms//cpu:arm64",
+    ],
+    toolchain = "local_jdk_config",
+    toolchain_type = "@bazel_tools//tools/jdk:toolchain_type",
+)
+
+
+
 platform(
     name = "rbe_linux_x86_64",
     constraint_values = [
@@ -42,10 +74,16 @@ platform(
         "@platforms//os:macos",
         "@platforms//cpu:arm64",
     ],
-    remote_execution_properties = """
-        properties: {
-            name: "Pool"
-            value: "mac-silicon-pool"
-        }
-    """
+exec_properties = {
+        "OSFamily": "Darwin",
+        "OSArch": "arm64",
+        "Pool": "mac-silicon-pool",
+        "sandbox": "none",
+    },
+#    remote_execution_properties = """
+#       properties: {
+#            name: "Pool"
+#            value: "mac-silicon-pool"
+#        }
+#    """
 )
